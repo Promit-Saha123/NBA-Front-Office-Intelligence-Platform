@@ -12,3 +12,7 @@ Backend/backend/models/saved/*.pkl
 
 # Notebook checkpoints
 .ipynb_checkpoints/
+
+# Node modules
+node_modules/
+Frontend/node_modules/
