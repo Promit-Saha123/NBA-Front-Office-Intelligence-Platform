@@ -17,7 +17,7 @@ import pandas as pd
 import os
 from datetime import date, timedelta
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -193,3 +193,23 @@ def load_artifacts():
         logger.info("Loaded model and data; accuracy cached: %s", _cached_accuracy)
     except Exception as e:
         logger.exception("Failed to load model or data on startup: %s", e)
+
+
+@app.post("/admin/reload")
+def admin_reload(x_admin_token: str | None = Header(default=None, convert_underscores=False)):
+    """Reload model and data artifacts at runtime. Requires ADMIN_TOKEN env var to be set and match header.
+
+    Header name: `X-Admin-Token`
+    """
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=403, detail="ADMIN_TOKEN not configured on server")
+    if x_admin_token != admin_token:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+    try:
+        load_artifacts()
+        return {"status": "reloaded", "accuracy": _cached_accuracy}
+    except Exception as e:
+        logger.exception("Reload failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
