@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+.env.local
+.env
+
+# Data & models (generated artifacts)
+Backend/backend/data/raw/*.csv
+Backend/backend/models/saved/*.pkl
+
+# Notebook checkpoints
+.ipynb_checkpoints/
