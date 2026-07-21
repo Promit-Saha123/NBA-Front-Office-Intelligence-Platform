@@ -8,9 +8,13 @@ exposed.
 
 ## Prerequisites
 
-* Versioned player projections exist
-  ([build-player-projection.md](build-player-projection.md))
-* Current-roster snapshot tier ingested and validated
+* A contribution provider exists behind the ContributionProvider interface —
+  for the free MVP the RAPTOR benchmark and synthetic providers
+  ([decision 0007](../docs/decisions/0007-fully-free-historical-prototype.md));
+  versioned PCE projections only in the future PCE phase
+* Historical-roster snapshots for the supported seasons ingested and validated
+  (historical-only product — decision 0005; seed season 2014-15 derived from the
+  RAPTOR by-team regular-season stints)
 * [docs/scenario-engine.md](../docs/scenario-engine.md) reviewed
 * Win-conversion methodology decided and recorded in
   [docs/decisions/](../docs/decisions/)
@@ -18,7 +22,7 @@ exposed.
 ## Inputs
 
 * Versioned baseline roster snapshot
-* Versioned player projections
+* A contribution provider (provider version + data version + epistemic type)
 * Minutes-allocation configuration (named configuration object)
 
 ## Steps
@@ -35,10 +39,12 @@ exposed.
 5. Implement the documented, versioned team-rating and win-conversion methods.
 6. Calculate descriptive profile changes and grounded explanation factors.
 7. Expose one backend scenario endpoint returning the response contract from
-   docs/scenario-engine.md §7, including `model_version`, `data_version`,
-   `minutes_method`, `minutes_assumptions`, and `win_conversion_version`.
-8. Build the minimal Roster Lab interface completing: select team → remove player →
-   add player → run scenario → display result with assumptions.
+   docs/scenario-engine.md §7, including `contribution_provider`,
+   `contribution_epistemic_type`, `data_version`, `minutes_method`,
+   `minutes_assumptions`, and `win_conversion_version`.
+8. Build the minimal Roster Lab interface completing: select historical season →
+   select team → remove player → add same-season player → run scenario → display
+   result with assumptions and the historical-only disclosures.
 9. Add the end-to-end test for that workflow using stable seeded data.
 
 ## Validation Checks

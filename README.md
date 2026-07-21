@@ -1,44 +1,62 @@
 # NBA Front Office Intelligence Platform
 
-A player-projection and roster-scenario platform that combines a backtested
-next-season player-impact model with transparent, user-inspectable rotation
+A **historical** NBA front-office simulation platform that combines versioned
+historical contribution benchmarks with transparent, user-inspectable rotation
 assumptions.
 
 The core question it answers:
 
-> How could adding or removing a player affect a team's projected performance under
-> explicit, inspectable assumptions?
+> How could adding or removing a player have affected a historical team's projected
+> performance under explicit, inspectable assumptions?
 
-The **roster scenario engine is the differentiator**: select a team, remove one
-player, add one player, generate a valid default rotation, and see the projected
-impact and win change — with every assumption labeled as a model prediction,
-heuristic assumption, deterministic calculation, or descriptive interpretation.
+The **roster scenario engine is the differentiator**: select a historical season,
+select a team from it, remove one player, add another player from that same season,
+generate a valid default rotation, and see the estimated scenario difference —
+with every output labeled by its epistemic type (historical benchmark, synthetic
+estimate, heuristic assumption, deterministic calculation, or descriptive
+interpretation).
 
-## Planned Vertical Slices
+**Fully free and historical-only**
+([decision 0005](docs/decisions/0005-historical-only-product-scope.md),
+[decision 0007](docs/decisions/0007-fully-free-historical-prototype.md)): the
+initial release uses only clearly licensed FiveThirtyEight historical data
+(CC BY 4.0, attributed), synthetic fixtures, and versioned local snapshots — no
+paid datasets, no live NBA endpoints, no current-season data. Seed season:
+**2014-15**. Scenario outputs are historical simulations, not predictions of real
+outcomes.
 
-1. **Player projection foundation** — historical data audit, canonical schema,
-   baseline models, XGBoost with rolling backtests, versioned projections
-2. **Basic scenario loop** — one-in/one-out scenario engine, heuristic default
-   minutes, one backend endpoint, minimal Roster Lab interface
-3. **Assumption transparency** — editable minutes, sensitivity analysis,
-   team-profile interpretation
-4. **Supporting experience** — player and team pages, visual polish
+The **Player Contribution Estimate (PCE)**
+([decision 0003](docs/decisions/0003-internal-player-impact-target.md)) is the
+approved future research direction; it requires a historical box-score source
+([decision 0006](docs/decisions/0006-historical-pce-data-source.md), deferred) and
+is not a blocker for the first release.
+
+## Free MVP (decision 0007)
+
+1. One historical season (2014-15) with canonical player/team/roster schemas
+2. Contribution-provider abstraction: RAPTOR benchmark + synthetic providers
+3. One-player same-season swap with a heuristic 240-minute rotation
+4. Deterministic scenario calculation behind one FastAPI endpoint
+5. Minimal Next.js Roster Lab with source attribution and methodology disclosures
+6. Offline tests and public historical deployment
 
 ## Current Status
 
-Documentation and repository initialization only. No application code, data, or
-models exist yet. **The historical data source has not been selected** — that
-evaluation ([docs/data-source-evaluation.md](docs/data-source-evaluation.md)) is the
-first prerequisite for Slice 1.
+Documentation, toolchain, audit tooling, and two audited CC BY 4.0 snapshots
+(FiveThirtyEight RAPTOR and NBA Elo — pinned commits, manifests, checksums). The
+free-path decision removes all data blockers for the initial release; the next
+step is the first implementation slice (schemas, fixture loader, providers,
+minutes allocator, swap service, tests).
 
 ## Documentation
 
 * [CLAUDE.md](CLAUDE.md) — root operational rules and priorities
 * [docs/project-specification.md](docs/project-specification.md) — product scope,
   architecture, build order
-* [docs/data-source-evaluation.md](docs/data-source-evaluation.md) — historical data
-  source evaluation (open)
+* [docs/data-source-evaluation.md](docs/data-source-evaluation.md) — data source
+  evaluation record
 * [docs/ml-specification.md](docs/ml-specification.md) — modeling requirements
+  (future PCE phase)
 * [docs/scenario-engine.md](docs/scenario-engine.md) — scenario engine methodology
 * [docs/testing-strategy.md](docs/testing-strategy.md) — testing and quality strategy
 * [docs/decisions/](docs/decisions/) — decision records

@@ -2,18 +2,28 @@
 
 ## Project
 
-This repository contains the **NBA Front Office Intelligence Platform**.
+This repository contains the **NBA Front Office Intelligence Platform** — a
+**historical** product (decision 0005): no current rosters, current-season data,
+live refreshes, or live NBA endpoints. The historical cutoff must be explicit and
+visible in the product.
+
+The initial release is **fully free** (decision 0007): built and deployed only
+with clearly licensed FiveThirtyEight historical data (CC BY 4.0, attributed),
+synthetic fixtures, and derived outputs the licenses permit. No paid datasets,
+no NBA consent prerequisite, no restricted raw data. PCE (decision 0003) is the
+future research direction, not a blocker for the first release.
 
 The platform combines:
 
-* a backtested next-season player-impact model
+* versioned historical player contribution benchmarks served through a
+  contribution-provider abstraction (RAPTOR benchmark / synthetic / future PCE)
 * transparent rotation assumptions
 * deterministic roster-scenario calculations
 * grounded explanations of projected changes
 
 The primary product question is:
 
-> How could adding or removing a player affect a team’s projected performance under explicit, inspectable assumptions?
+> How could adding or removing a player have affected a historical team’s projected performance under explicit, inspectable assumptions?
 
 The roster scenario engine is the project’s primary differentiator. Supporting player, team, and comparison pages exist to support that experience.
 
@@ -35,6 +45,10 @@ workflows/
 
 Read only the documents relevant to the current task.
 
+Detailed rule sets live as project skills in `.claude/skills/` (`data-rules`,
+`ml-rules`, `scenario-rules`, `testing-rules`). They load automatically when
+relevant; invoke the matching skill before starting work in its area.
+
 When instructions conflict, use this priority:
 
 1. Explicit user instruction
@@ -55,26 +69,30 @@ Build the smallest credible version of the scenario loop before polishing suppor
 The first meaningful end-to-end workflow is:
 
 ```text
-Select a team
+Select a historical season
+→ select a team from that season
+→ view the historical roster
 → remove one player
-→ add one player
+→ add another player from the same season
 → generate a valid default rotation
-→ calculate projected impact and win change
-→ show assumptions and explanation factors
+→ aggregate historical benchmark contribution values
+→ estimate a scenario difference
+→ show assumptions, data version, provider type, and explanation factors
 ```
 
-Build in this order:
+Build in this order (free MVP first — decision 0007):
 
-1. Historical data audit and canonical schema
-2. Baseline next-season player projection
-3. XGBoost model and time-based evaluation
-4. Basic roster scenario engine
-5. One backend scenario endpoint
-6. Minimal functional Roster Lab interface
-7. Editable minutes and sensitivity analysis
-8. Team-profile interpretation
-9. Supporting player and team pages
-10. Visual polish and broader features
+1. Canonical historical player/team/season/roster schemas (seed season 2014-15)
+2. Contribution-provider interface + RAPTOR benchmark and synthetic providers
+3. Basic roster scenario engine (same-season one-for-one swap)
+4. One backend scenario endpoint
+5. Minimal functional Roster Lab interface with required disclosures
+6. Editable minutes and sensitivity analysis
+7. Team-profile interpretation
+8. Supporting player and team pages; public historical deployment
+9. Visual polish and broader features
+10. Future phase (separate approval): historical box-score source, PCE
+    construction and validation, PCE prediction model
 
 Do not build the application page-by-page while postponing the scenario engine.
 
@@ -84,7 +102,11 @@ Do not build the application page-by-page while postponing the scenario engine.
 
 Describe the platform as:
 
-> A player-projection and roster-scenario platform that combines a backtested next-season impact model with transparent, user-inspectable rotation assumptions.
+> A historical NBA front-office simulation platform that combines versioned historical contribution benchmarks with transparent rotation assumptions.
+
+Do not describe the product as current, live, real-time, or production NBA
+forecasting. Do not label RAPTOR benchmark or synthetic values as PCE, validated,
+or causal; use the exact UI labels in decision 0007 §8.
 
 Do not claim that the system predicts:
 
@@ -148,172 +170,30 @@ Rules:
 
 ## Data Rules
 
-Do not make the system dependent on a live undocumented endpoint.
-
-Introduce data tiers only when needed:
-
-1. Historical training snapshot
-2. Latest completed-season snapshot
-3. Current roster snapshot
-
-Slice 1 only requires the historical tier. Current rosters are introduced during the scenario-engine phase.
-
-Before selecting or replacing a source, update:
-
-```text
-docs/data-source-evaluation.md
-```
-
-Do not:
-
-* scrape Sports Reference properties without confirmed permission
-* assume a third-party license overrides the original source’s rights
-* depend on live external APIs in automated tests
-* overwrite raw source files
-* use names as primary identifiers
-* silently discard invalid records
-* mix observations, features, predictions, assumptions, or scenario results
-
-Treat `nba_api` as a replaceable adapter, not the system of record.
-
-Preserve raw snapshots with:
-
-* source
-* retrieval date
-* checksum
-* license information
-* data version
-* code version where available
-
-Use canonical internal player and team identifiers with explicit source crosswalks.
-
-Ambiguous identity matches require review.
+Binding rules live in the `data-rules` project skill — use it before any work
+on data sources, ingestion, snapshots, licensing, identifiers, or validation.
+Non-negotiables: historical-only (decision 0005), fully free sources only
+(decision 0007), never overwrite raw snapshots, never use names as primary
+identifiers.
 
 ---
 
 ## Machine Learning Rules
 
-The initial target is next-season Box Plus/Minus unless an approved decision changes it.
-
-One training row represents one player during one completed season.
-
-Before training XGBoost, establish simple baselines such as:
-
-* previous-season BPM
-* multi-season average BPM
-* linear regression
-
-A complex model is only better if it outperforms reasonable baselines in time-respecting evaluation.
-
-Never use target-season or future information in features.
-
-Do not use random row-level splitting as the primary validation method.
-
-Use season-based validation or rolling backtests:
-
-```text
-Train through season N
-→ predict season N+1
-```
-
-Training and inference must use the same feature-generation code.
-
-Every model artifact must include:
-
-* model version
-* data version
-* target definition
-* feature list
-* hyperparameters
-* evaluation results
-* training date
-* artifact location
-* code commit where available
-
-Never overwrite an existing model artifact.
-
-Detailed requirements live in:
-
-```text
-docs/ml-specification.md
-```
+Binding rules live in the `ml-rules` project skill — use it before any work on
+PCE, features, training, evaluation, or model artifacts. Non-negotiables: the
+first release ships no trained model (decision 0007); never use target-season
+or future information in features; never overwrite a model artifact.
 
 ---
 
-## Scenario Engine Rules
+## Scenario Engine and Explainability Rules
 
-The v1 minutes engine is a **heuristic assumption engine**, not a rotation-prediction model.
-
-Do not present unvalidated weights or rules as established basketball truth.
-
-The engine must enforce:
-
-* exactly 240 regulation minutes
-* no negative minutes
-* removed players receive zero minutes
-* only rostered players receive minutes
-* player workload limits
-* a valid rotation
-* basic positional viability
-
-The first scenario should support one player added and one player removed.
-
-For a fixed combination of:
-
-* roster input
-* data version
-* model version
-* minutes method
-* configuration
-
-the result must be deterministic.
-
-Scenario responses must expose:
-
-```text
-model_version
-data_version
-minutes_method
-minutes_assumptions
-```
-
-Editable minutes belong after the automatic scenario loop works.
-
-Do not apply arbitrary fit bonuses or penalties to projected wins.
-
-In v1, shooting, playmaking, rebounding, defensive activity, availability, and positional balance are descriptive profile outputs unless an empirically evaluated model says otherwise.
-
-Detailed methodology lives in:
-
-```text
-docs/scenario-engine.md
-```
-
----
-
-## Explainability
-
-Every explanation must be traceable to calculated values.
-
-Acceptable:
-
-```text
-Three-point volume increased while defensive rebounding declined.
-```
-
-Unacceptable:
-
-```text
-The incoming player adds championship leadership and winning mentality.
-```
-
-An LLM may rewrite verified analytical factors into clearer prose, but it must not create new basketball claims.
-
-Preserve the underlying factors used to generate every explanation.
-
-Use this label where appropriate:
-
-> Heuristic scenario profile, not a validated causal fit model.
+Binding rules live in the `scenario-rules` project skill — use it before any
+work on the scenario engine, minutes allocation, swaps, scenario responses, or
+explanations. Non-negotiables: exactly 240 minutes, deterministic results,
+version metadata exposed, no arbitrary fit bonuses, explanations traceable to
+calculated values.
 
 ---
 
@@ -406,42 +286,10 @@ Use parameterized database access and appropriately restricted CORS.
 
 ## Testing
 
-A change is not complete because it ran successfully once.
-
-Add tests appropriate to the change.
-
-At minimum, protect:
-
-* API contracts
-* database behavior
-* data validation
-* identity resolution
-* temporal leakage
-* feature-schema consistency
-* model artifact loading
-* deterministic inference
-* 240-minute enforcement
-* removed-player handling
-* impossible rotations
-* assumption metadata
-* frontend loading and error states
-* scenario result rendering
-
-At least one end-to-end test must cover:
-
-```text
-Select team
-→ remove player
-→ add player
-→ run scenario
-→ display valid result
-```
-
-Detailed requirements live in:
-
-```text
-docs/testing-strategy.md
-```
+A change is not complete because it ran successfully once. The required minimum
+coverage list and end-to-end requirement live in the `testing-rules` project
+skill — use it when writing tests or completing a task. Detailed requirements:
+`docs/testing-strategy.md`.
 
 ---
 
@@ -462,7 +310,9 @@ Frontend lint: not yet scaffolded
 Frontend type-check: not yet scaffolded
 Frontend tests: not yet scaffolded
 
-Backend development: not yet scaffolded (FastAPI)
+Backend domain/service layer: backend/ (domain models, fixture loader,
+  contribution providers, minutes allocator, scenario service — see
+  docs/architecture/README.md); no FastAPI routes yet
 Python lint: uv run ruff check .
 Python type-check: uv run mypy
 Python tests: uv run pytest
@@ -478,7 +328,8 @@ Model training: not yet configured
 Model evaluation: not yet configured
 Projection generation: not yet configured
 
-Full quality check: uv run ruff check . ; uv run mypy ; uv run pytest
+Full quality check (stops on first failure; run in a POSIX shell such as Git Bash):
+  uv run ruff check . && uv run mypy && uv run pytest
 ```
 
 Sections marked "not yet scaffolded/configured" must be filled in when that
@@ -537,13 +388,9 @@ A task is complete only when:
 * no secrets are committed
 * the final diff has been reviewed
 
-For scenario-engine changes, also verify:
-
-* minutes total exactly 240
-* model and data versions are present
-* heuristic status is visible
-* explanations match calculated factors
-* no arbitrary fit constant was introduced
+For scenario-engine changes, also verify the scenario-engine checklist in the
+`scenario-rules` skill (240 minutes, version metadata, heuristic labeling,
+traceable explanations, no arbitrary fit constants).
 
 ---
 

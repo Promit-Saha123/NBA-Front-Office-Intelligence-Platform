@@ -22,7 +22,9 @@ as the system of record for player-season data.
    [docs/data-source-evaluation.md](../docs/data-source-evaluation.md).
 2. Retrieve a small sample (a few seasons) through a permitted method; preserve the
    raw files unmodified with source, retrieval date, checksum, and license metadata.
-3. Verify field coverage against the required-field list, especially **BPM**.
+3. Verify field coverage against the required-field list, especially the **PCE
+   construction inputs** (box-score fields and team outcomes; see
+   [docs/data-source-evaluation.md §1](../docs/data-source-evaluation.md)).
 4. Verify season coverage and completeness against backtesting needs.
 5. Examine identifier stability across seasons, trades, duplicate names, suffixes,
    and accented characters.
@@ -49,6 +51,7 @@ as the system of record for player-season data.
 ## Stopping Conditions
 
 * Stop immediately if licensing does not clearly permit the intended use.
-* Stop if BPM is neither present nor reproducibly derivable — the source cannot be
-  primary without an approved target change.
+* Stop if the required PCE construction inputs (box-score fields or team outcomes)
+  are neither present nor derivable — the source cannot be primary without an
+  approved requirements change.
 * Stop and flag for review if identifier ambiguity cannot be resolved.

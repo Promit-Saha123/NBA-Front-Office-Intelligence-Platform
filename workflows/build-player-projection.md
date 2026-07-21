@@ -1,9 +1,15 @@
-# Workflow: Build Player Projection (Slice 1)
+# Workflow: Build Player Projection (future PCE phase)
+
+> **Deferred by [decision 0007](../docs/decisions/0007-fully-free-historical-prototype.md):**
+> the free MVP ships no trained model — contribution values come from the
+> provider abstraction. Run this workflow only when the PCE phase begins (after a
+> historical box-score source is approved per decision 0006).
 
 ## Objective
 
-Produce versioned next-season BPM projections from audited historical data: canonical
-schema, baseline models, XGBoost, and a rolling-backtest report.
+Produce versioned next-season PCE (Player Contribution Estimate) projections from
+audited historical data: canonical schema, constructed and validated PCE target
+(decision 0003), baseline models, XGBoost, and a rolling-backtest report.
 
 ## Prerequisites
 
@@ -23,18 +29,22 @@ schema, baseline models, XGBoost, and a rolling-backtest report.
    identifiers, source crosswalk, and one row per player-season.
 2. Add data-validation checks (nulls, duplicates, impossible values, traded-player
    aggregation) that fail loudly.
-3. Build the shared feature pipeline producing a versioned
+3. Construct the PCE target: learn contribution coefficients per
+   [decision 0003](../docs/decisions/0003-internal-player-impact-target.md), run the
+   metric-validation program (stability, ablations, benchmarking), and freeze the
+   versioned coefficients (`pce-v1`) before any prediction modeling.
+4. Build the shared feature pipeline producing a versioned
    `player_season_features` schema, importable by both training and inference.
-4. Add temporal-leakage checks (`feature_season < target_season`, no target-season
+5. Add temporal-leakage checks (`feature_season < target_season`, no target-season
    columns).
-5. Implement and evaluate baselines: persistence, multi-season average, linear
+6. Implement and evaluate baselines: persistence, multi-season average, linear
    regression.
-6. Train the XGBoost regressor with conservative documented hyperparameters.
-7. Run rolling backtests (train through season N → predict N+1) and record metrics
+7. Train the XGBoost regressor with conservative documented hyperparameters.
+8. Run rolling backtests (train through season N → predict N+1) and record metrics
    for baselines and XGBoost.
-8. Save the model artifact with complete metadata (versions, periods,
+9. Save the model artifact with complete metadata (versions, periods,
    hyperparameters, metrics, checksum); never overwrite an existing artifact.
-9. Generate and store versioned player projections for the target season.
+10. Generate and store versioned player projections for the target season.
 
 ## Validation Checks
 

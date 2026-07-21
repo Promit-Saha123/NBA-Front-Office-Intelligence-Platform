@@ -9,13 +9,26 @@ Unresolved decisions are listed at the end and are not presented as settled.
 
 ## 1. Product Purpose
 
-A player-projection and roster-scenario platform that combines a backtested next-season
-impact model with transparent, user-inspectable rotation assumptions.
+> A historical NBA front-office simulation platform that combines versioned
+> historical contribution benchmarks with transparent rotation assumptions.
+
+The product is **historical-only**
+([decision 0005](decisions/0005-historical-only-product-scope.md)) and the initial
+release is **fully free**
+([decision 0007](decisions/0007-fully-free-historical-prototype.md)): built and
+deployed only with clearly licensed FiveThirtyEight historical data (CC BY 4.0,
+attributed), synthetic fixtures, and versioned local snapshots. It requires no
+current rosters, current-season data, live refreshes, live NBA endpoints, or paid
+datasets, and must never be described as current, live, real-time, or production
+NBA forecasting. The supported historical season range (seed: 2014-15) is explicit
+and visible in the product. PCE
+([decision 0003](decisions/0003-internal-player-impact-target.md)) is the future
+research direction, served later through the same contribution-provider interface.
 
 The primary product question:
 
-> How could adding or removing a player affect a team's projected performance under
-> explicit, inspectable assumptions?
+> How could adding or removing a player have affected a historical team's projected
+> performance under explicit, inspectable assumptions?
 
 The roster scenario engine is the primary differentiator. Player, team, and comparison
 pages exist to support that experience.
@@ -34,15 +47,22 @@ Every output is labeled as one of:
 The first meaningful end-to-end workflow:
 
 ```text
-Select a team
+Select a historical season
+→ select a team from that season
+→ view the historical roster
 → remove one player
-→ add one player
-→ generate a valid default rotation
-→ calculate projected impact and win change
-→ show assumptions and explanation factors
+→ add another player from the same season
+→ generate a valid heuristic rotation
+→ aggregate historical benchmark contribution values
+→ estimate a scenario difference
+→ display assumptions, data version, provider type, and explanation factors
 ```
 
-The v1 scenario supports exactly one player added and one player removed. Scenario
+The v1 scenario supports exactly one player added and one player removed. The
+added player must have a player-season record in the selected season and must not
+already be on the selected roster (any team of origin within that season); no
+cross-era swaps, salary-cap logic, or injury simulation
+([decision 0005 §3](decisions/0005-historical-only-product-scope.md)). Scenario
 results are deterministic for a fixed combination of roster input, data version, model
 version, minutes method, and configuration, and every response exposes
 `model_version`, `data_version`, `minutes_method`, and `minutes_assumptions`.
@@ -53,17 +73,18 @@ version, minutes method, and configuration, and every response exposes
 
 The MVP is built as four vertical slices, following the build order in CLAUDE.md:
 
-### Slice 1 — Player projection foundation
+### Slice 1 — Free historical foundation (decision 0007)
 
-Historical data audit and canonical schema; baseline next-season player projections
-(persistence, multi-season average, linear regression); XGBoost model with
-time-based rolling backtests; versioned player projections.
+Canonical historical player/team/season/roster schemas seeded from the audited
+CC BY 4.0 snapshots (seed season 2014-15); fixture loader; contribution-provider
+interface with the RAPTOR benchmark and synthetic providers.
 
 ### Slice 2 — Basic scenario loop
 
-Basic roster scenario engine (one-in, one-out); heuristic default minutes with hard
-rotation constraints; one backend scenario endpoint; a minimal functional Roster Lab
-interface completing the workflow in section 2.
+Basic roster scenario engine (one-in, one-out, same season); heuristic default
+minutes with hard rotation constraints; one backend scenario endpoint; a minimal
+functional Roster Lab interface completing the workflow in section 2 with the
+required disclosures (decision 0007 §8).
 
 ### Slice 3 — Assumption transparency
 
@@ -72,7 +93,13 @@ assumptions; team-profile interpretation (descriptive only).
 
 ### Slice 4 — Supporting experience
 
-Supporting player and team pages; visual polish and broader features.
+Supporting player and team pages; visual polish; public historical deployment.
+
+### Future phase (separate approval — decisions 0003/0006)
+
+Historical box-score source acquisition; PCE construction, validation, and
+next-season prediction model; `PceProvider` behind the same contribution
+interface. Not a blocker for Slices 1–4.
 
 ---
 
@@ -89,6 +116,9 @@ The platform does not claim to predict:
 
 Out of scope for the MVP:
 
+* current rosters, current-season data, live refreshes, and live NBA endpoints
+  (historical-only product — decision 0005)
+* cross-era player swaps, salary-cap logic, and injury simulation
 * multi-player transactions (only after the one-for-one flow is stable)
 * validated causal "fit" effects on projected wins — no hand-tuned fit bonuses or
   penalties; v1 fit outputs are descriptive profile changes only
@@ -142,7 +172,8 @@ Established:
 * **PostgreSQL** — system of record
 * **FastAPI** — backend API (Python)
 * **Next.js** — frontend
-* **XGBoost** — primary model, evaluated against simple baselines (Python ML stack)
+* **XGBoost** — primary model for the future PCE prediction phase, evaluated
+  against simple baselines (Python ML stack); the free MVP ships no trained model
 
 Toolchain (see [decisions/0002-environment-and-toolchain.md](decisions/0002-environment-and-toolchain.md)):
 
@@ -152,8 +183,11 @@ Toolchain (see [decisions/0002-environment-and-toolchain.md](decisions/0002-envi
 * **Ruff** (lint), **mypy** (type-check), **Pytest** (tests)
 * **Next.js with TypeScript** for the frontend
 
-Deliberately not yet decided: historical data source and the specific
-win-conversion method (see Unresolved Decisions).
+Deliberately not yet decided: the specific win-conversion method (see Unresolved
+Decisions). The historical box-score source for future PCE construction is a
+deferred optional path
+([decision 0006](decisions/0006-historical-pce-data-source.md)), not a blocker
+for the free MVP ([decision 0007](decisions/0007-fully-free-historical-prototype.md)).
 
 `nba_api` is treated only as a replaceable data-source adapter, never as the system of
 record.
@@ -182,8 +216,11 @@ Do not build the application page-by-page while postponing the scenario engine.
 
 ## 8. Major Limitations
 
-* The initial model target is next-season Box Plus/Minus — a box-score-derived
-  estimate, not a complete measure of player value.
+* The model target is the next-season Player Contribution Estimate (PCE) — an
+  internally computed, statistically estimated contribution metric
+  ([decision 0003](decisions/0003-internal-player-impact-target.md)). It is
+  associational, not causal; incompletely captures defense; and is not equivalent
+  to BPM, RAPTOR, EPM, or another established metric.
 * The v1 minutes engine is a heuristic assumption engine, not a rotation-prediction
   model. Its outputs carry the label: *"Heuristic scenario profile, not a validated
   causal fit model."*
@@ -195,6 +232,9 @@ Do not build the application page-by-page while postponing the scenario engine.
   requires explicit documentation and evaluation.
 * Results depend on the selected historical data source, which has not yet been
   chosen.
+* The product covers only its stated historical season range, fixed by the
+  approved source and displayed with data, model, minutes-method, and
+  win-conversion versions; no current-season claim is made anywhere.
 
 ---
 
@@ -203,9 +243,9 @@ Do not build the application page-by-page while postponing the scenario engine.
 These block or shape upcoming work and require decision records in
 [decisions/](decisions/):
 
-* Historical data source selection — see
-  [data-source-evaluation.md](data-source-evaluation.md)
-* Team-rating and win-conversion methodology
+* Team-rating and win-conversion methodology (for the prototype it may be
+  calibrated against nba-elo team outcomes; method and version still to be
+  decided)
 * Minutes-allocation weighting details for the heuristic engine
 * Position representation (4-bucket vs. 5-position) and multi-position handling
 * Low-minute, rookie, and replacement-level treatment thresholds

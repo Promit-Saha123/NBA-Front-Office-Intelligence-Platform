@@ -276,7 +276,7 @@ Test:
 * broken foreign keys
 * unexpected team codes
 * unsupported positions
-* out-of-range BPM values
+* out-of-range PCE values
 * inconsistent player identifiers
 
 Validation failures should include actionable error messages.
@@ -428,6 +428,17 @@ Verify:
 Never silently fall back to an unversioned artifact.
 
 ---
+
+## 20b. Contribution-Provider Tests (free MVP — decision 0007)
+
+Test that:
+
+* both initial providers implement the full ContributionProvider interface
+* provider version, data version, and epistemic type are returned
+* RAPTOR benchmark values match the pinned snapshot exactly
+* synthetic values are deterministic and always labeled
+* the scenario engine never reads provider-specific field names
+* an unknown player or unsupported season fails clearly
 
 ## 21. Inference Tests
 
@@ -636,7 +647,7 @@ Repository integration tests should cover:
 * duplicate records
 * version selection
 * latest-active-model lookup
-* current-roster lookup
+* historical-roster lookup for a selected season
 
 Watch for N+1 query behavior in roster and scenario reads.
 
@@ -703,8 +714,9 @@ At least one end-to-end test must cover:
 
 ```text
 Open Roster Lab
+→ select historical season
 → select team
-→ view current roster
+→ view historical roster
 → remove player
 → add player
 → run scenario

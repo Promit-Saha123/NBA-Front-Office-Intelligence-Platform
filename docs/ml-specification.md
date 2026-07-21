@@ -20,11 +20,12 @@ The model is one component of the roster scenario platform. It does not independ
 
 ---
 
-## 2. Initial Modeling Objective
+## 2. Modeling Objective and Target Metric
 
-The initial target is:
+The approved target ([decision 0003](decisions/0003-internal-player-impact-target.md);
+initially next-season BPM, changed by that record) is:
 
-> Next-season Box Plus/Minus.
+> Next-season **Player Contribution Estimate (PCE)**.
 
 One modeling row represents:
 
@@ -32,16 +33,111 @@ One modeling row represents:
 
 The input features are calculated using information available at the end of season N.
 
-The target is the player’s Box Plus/Minus in season N+1.
+The target is the player’s PCE in season N+1.
 
 Example:
 
 ```text
 2023-24 player features
-→ predict 2024-25 BPM
+→ predict 2024-25 PCE
 ```
 
-The target may be changed later through an approved decision record if a more appropriate, accessible, and legally usable impact metric is identified.
+Any further target change requires a new approved decision record.
+
+### 2.1 PCE Definition (conceptual level)
+
+PCE is an internally computed, versioned player-contribution metric. Approved
+conceptual method:
+
+```text
+canonical player-season box-score rates
++ minutes shares
++ team-season net rating
+→ within-season standardization
+→ pooled regularized regression
+→ versioned player-contribution coefficients
+→ Player Contribution Estimate
+```
+
+Constraints on any implementation:
+
+* Coefficients are **learned** from historical team outcomes — never manually
+  selected.
+* The estimate is **associational, not causal**.
+* The first implementation should use a **compact feature set** (the limited
+  team-season sample constrains feature count).
+* **Ridge regression is the initial candidate**, not an irrevocable final choice.
+* **Traded players require team-stint records** (per-team minutes shares within a
+  season).
+* The **team-season sample is limited** (~30 observations per season), which
+  restricts model flexibility.
+* **Defense is incompletely represented** in public box-score data; PCE inherits
+  that limitation.
+* **Coefficient stability must be evaluated before `pce-v1` is frozen.**
+
+No numeric formula or feature weights are defined in documentation; they belong to
+versioned, validated artifacts.
+
+### 2.2 Epistemic Classification of PCE (approved)
+
+* A PCE value is a **statistically estimated metric**.
+* Applying frozen, versioned PCE coefficients to canonical player statistics is a
+  **deterministic calculation**.
+* A next-season PCE forecast is a **model prediction**.
+
+Standard descriptive phrase:
+
+> Statistically estimated metric calculated deterministically from fixed,
+> versioned coefficients.
+
+Never describe PCE as causal, official, definitive, or equivalent to BPM, RAPTOR,
+EPM, or another established metric.
+
+### 2.3 Three Separate Evaluation Problems
+
+These must never be conflated; each has its own validation criteria:
+
+1. **Validating PCE as a constructed historical metric** — leave-season-out
+   reconstruction of team outcomes, season-to-season stability, coefficient
+   stability across rolling windows, ablations, sensitivity to minutes,
+   traded-player agreement, position/role bias checks, outlier review, bootstrap
+   uncertainty, and benchmarking against permitted references (historical RAPTOR
+   under CC BY 4.0 only). This program is a prerequisite for freezing `pce-v1`
+   (detailed in [decision 0003 §6](decisions/0003-internal-player-impact-target.md)).
+2. **Predicting next-season PCE** — governed by this specification: baselines
+   (§10), time-based evaluation and rolling backtests (§9), metrics (§12).
+3. **Aggregating projected PCE values into roster scenarios** — governed by
+   [scenario-engine.md](scenario-engine.md) (aggregation, team-rating conversion,
+   win conversion), validated separately.
+
+### 2.4 Release Sequencing (decision 0007)
+
+**The first deployed release ships no trained model and no PCE.** Contribution
+values come from a provider abstraction (`HistoricalRaptorBenchmarkProvider`,
+`SyntheticContributionProvider` — see
+[scenario-engine.md §16](scenario-engine.md) and
+[decision 0007 §7](decisions/0007-fully-free-historical-prototype.md)), always
+labeled per decision 0007 §8 and never as `pce-v1`, validated PCE, causal impact,
+or current-season prediction. This specification governs the **future PCE phase**,
+which begins only when a historical box-score source is approved
+([decision 0006](decisions/0006-historical-pce-data-source.md), deferred).
+
+### 2.5 Historical-Only Behavior (decision 0005)
+
+* PCE is constructed **only from historical data**.
+* Next-season PCE prediction is evaluated **historically**: rolling backtests
+  only, and the model predicts season N+1 only where historical ground truth
+  exists.
+
+```text
+Train through 2018-19
+→ predict 2019-20
+→ compare with historical 2019-20 PCE
+```
+
+* **No current-season prediction claim is made anywhere.**
+* `pce-v1` is not frozen until the historical source is approved and the §2.3
+  stage-1 validation program passes.
 
 ---
 
@@ -146,9 +242,9 @@ The historical dataset should contain or support derivation of:
 
 ### Historical impact fields
 
-* Box Plus/Minus
-* offensive Box Plus/Minus, where available
-* defensive Box Plus/Minus, where available
+* Player Contribution Estimate (computed internally from the fields above plus
+  team outcomes; see §2.1 — not sourced externally)
+* offensive/defensive decomposition, where the PCE methodology supports it
 * prior-season impact
 * multi-season impact history
 
@@ -192,9 +288,8 @@ Potential feature groups include:
 
 ### Current-season performance
 
-* BPM
-* offensive BPM
-* defensive BPM
+* PCE
+* offensive/defensive PCE decomposition, where available
 * minutes per game
 * usage rate
 * true shooting percentage
@@ -206,10 +301,10 @@ Potential feature groups include:
 
 ### Multi-season history
 
-* previous-season BPM
-* two-season weighted BPM
-* three-season average BPM
-* year-over-year BPM change
+* previous-season PCE
+* two-season weighted PCE
+* three-season average PCE
+* year-over-year PCE change
 * year-over-year minutes change
 * year-over-year efficiency change
 
@@ -319,13 +414,13 @@ Required baselines include:
 ### Persistence baseline
 
 ```text
-predicted next-season BPM = current-season BPM
+predicted next-season PCE = current-season PCE
 ```
 
 ### Multi-season average baseline
 
 ```text
-predicted next-season BPM = weighted or unweighted average of recent BPM
+predicted next-season PCE = weighted or unweighted average of recent PCE
 ```
 
 ### Linear regression baseline
@@ -415,7 +510,7 @@ The interface may initially display point estimates, but documentation must stat
 A later version may expose:
 
 ```text
-predicted BPM
+predicted PCE
 lower estimate
 upper estimate
 ```
@@ -540,10 +635,10 @@ Suggested metadata structure:
 
 ```json
 {
-  "model_version": "player-impact-xgb-v1",
+  "model_version": "pce-xgb-v1",
   "data_version": "historical-player-seasons-v1",
   "feature_schema_version": "player-impact-features-v1",
-  "target": "next_season_bpm",
+  "target": "next_season_pce",
   "trained_at": "YYYY-MM-DDTHH:MM:SSZ",
   "training_seasons": [],
   "validation_seasons": [],
@@ -586,7 +681,7 @@ Player projection responses should include:
 internal_player_id
 feature_season
 target_season
-predicted_bpm
+predicted_pce
 model_version
 data_version
 feature_schema_version
@@ -626,11 +721,11 @@ Explainability must not imply causality.
 
 Good wording:
 
-> Recent BPM, age, minutes stability, and shooting efficiency were among the strongest contributors to this projection.
+> Recent PCE, age, minutes stability, and shooting efficiency were among the strongest contributors to this projection.
 
 Bad wording:
 
-> Improving shooting efficiency will cause the player’s BPM to increase by exactly 1.2.
+> Improving shooting efficiency will cause the player’s PCE to increase by exactly 1.2.
 
 Any user-facing explanation must be grounded in stored feature or model outputs.
 
