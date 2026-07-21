@@ -1,0 +1,32 @@
+{
+  "source": "FiveThirtyEight NBA Elo dataset (nba-elo folder of the fivethirtyeight/data GitHub repository)",
+  "publisher": "FiveThirtyEight (ABC News)",
+  "retrieval_date": "2026-07-20",
+  "directory_note": "Directory is named 2026-07-19 (session start date); retrieval completed 2026-07-20. A rename was blocked by a file-sync lock; this manifest is authoritative for the retrieval date.",
+  "retrieval_method": "HTTPS download from raw.githubusercontent.com at a pinned commit",
+  "pinned_commit": "6d880e939ad3d11d94c137c911681b3cf718fd74",
+  "pinned_commit_date": "2022-12-16T18:53:39Z",
+  "base_url": "https://raw.githubusercontent.com/fivethirtyeight/data/6d880e939ad3d11d94c137c911681b3cf718fd74",
+  "license": "CC BY 4.0 (repository-wide LICENSE file; copy preserved as LICENSE_fivethirtyeight_data, byte-identical to the copy in the nba-raptor snapshot)",
+  "terms_reference": "https://github.com/fivethirtyeight/data/blob/master/LICENSE",
+  "attribution": "Data by FiveThirtyEight, https://github.com/fivethirtyeight/data/tree/master/nba-elo, CC BY 4.0",
+  "data_version": "fivethirtyeight-nba-elo-2022-12-16",
+  "code_version": "retrieval performed via curl during the PCE-era data-source audit; repository commit at retrieval recorded in the audit report",
+  "files": {
+    "nbaallelo.csv": {
+      "sha256": "d46ed3540ee8d9eca31b3e94cc8c777e0be5156173d814ebf65b8195e8d616bc",
+      "bytes": 18173265,
+      "rows": 126314,
+      "grain": "one row per team per game (two rows per game, _iscopy flag)",
+      "seasons": "1947-2015 (year_id; NBA and ABA)"
+    },
+    "README.md": {
+      "sha256": "f646090be6c98edb90ca986a75747196a46626b3de591ee6b70779b649727a31",
+      "bytes": 1707
+    },
+    "LICENSE_fivethirtyeight_data": {
+      "sha256": "7e7170e3cebf88a9f60c7b8421418323c09304da1af4d5e90f4da1dc1c8a2661",
+      "bytes": 18650
+    }
+  }
+}

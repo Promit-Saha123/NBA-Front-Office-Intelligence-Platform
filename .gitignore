@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Claude Code local settings (personal permission overrides, not shared)
+.claude/settings.local.json
+
 # Python
 __pycache__/
 *.py[cod]

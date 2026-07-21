@@ -18,8 +18,8 @@ no `package.json`, no compose file). The user directed a specific default toolch
 | Python runtime | Python 3.12 (pinned in `.python-version`, `requires-python` in `pyproject.toml`) |
 | Python dependency management | `uv` (dependency groups in `pyproject.toml`, lockfile `uv.lock`) |
 | Node runtime | Node.js 22 LTS (pinned in `.nvmrc`) |
-| Node package manager | `pnpm` (to be pinned via `packageManager` when the frontend is scaffolded) |
-| Database | PostgreSQL 16 via Docker Compose (`docker-compose.yml`) |
+| Node package manager | `pnpm` (see pinning note below) |
+| Database | PostgreSQL 16, pinned to `postgres:16.14` via Docker Compose (`docker-compose.yml`) |
 | Python lint | Ruff (configured in `pyproject.toml`) |
 | Python type-check | mypy (configured in `pyproject.toml`) |
 | Python tests | Pytest (configured in `pyproject.toml`) |
@@ -37,6 +37,19 @@ Postgres versions) were not re-litigated. No repository configuration conflicted
 * uv provides lockfile-based reproducibility, which the ML specification requires
   (pinned package versions in model artifacts).
 * Docker Compose gives a reproducible local PostgreSQL 16 without host installation.
+
+## Pinning Notes (updated 2026-07-19)
+
+* **pnpm cannot be enforced yet.** Version pinning requires a `package.json`
+  `packageManager` field (with corepack) and none exists until the frontend is
+  scaffolded. Creating a `package.json` solely to pin pnpm was deliberately
+  avoided. Whoever scaffolds the frontend must add the `packageManager` pin in
+  the same change.
+* **PostgreSQL is pinned to `postgres:16.14`** (newest 16.x image on Docker Hub at
+  pin time, published 2026-07-17) instead of the floating `postgres:16` tag, so
+  local databases do not drift across minor versions. Bump deliberately.
+* **The full quality check stops on the first failure** — commands are chained
+  with `&&` in a POSIX shell (see CLAUDE.md Commands).
 
 ## Consequences
 

@@ -1,0 +1,47 @@
+{
+  "source": "FiveThirtyEight NBA RAPTOR dataset (nba-raptor folder of the fivethirtyeight/data GitHub repository)",
+  "publisher": "FiveThirtyEight (ABC News)",
+  "retrieval_date": "2026-07-19",
+  "retrieval_method": "HTTPS download from raw.githubusercontent.com at a pinned commit",
+  "pinned_commit": "6d9b3277a3dc8ecd74bdef7a4f48da5bb1297bb4",
+  "pinned_commit_date": "2022-11-29T16:16:09Z",
+  "base_url": "https://raw.githubusercontent.com/fivethirtyeight/data/6d9b3277a3dc8ecd74bdef7a4f48da5bb1297bb4",
+  "license": "CC BY 4.0 (repository-wide LICENSE file, SPDX CC-BY-4.0 per GitHub API; copy preserved as LICENSE_fivethirtyeight_data)",
+  "attribution": "Data by FiveThirtyEight, https://github.com/fivethirtyeight/data/tree/master/nba-raptor, CC BY 4.0",
+  "data_version": "fivethirtyeight-nba-raptor-2022-11-29",
+  "code_version": "repository had no commits at retrieval time; retrieval performed manually via curl during the data-source audit",
+  "files": {
+    "historical_RAPTOR_by_player.csv": {
+      "sha256": "9c90010404c2b557524b6ab7172e2b41a08cf57e929f2753a6c7e9ac7c520ac8",
+      "bytes": 3057843,
+      "rows": 19159,
+      "seasons": "1977-2022"
+    },
+    "modern_RAPTOR_by_player.csv": {
+      "sha256": "cb64bd15492b540e5a376fcebddc1ba77b94847ee33ab26811d4123ef5fd7160",
+      "bytes": 1231859,
+      "rows": 4685,
+      "seasons": "2014-2022"
+    },
+    "historical_RAPTOR_by_team.csv": {
+      "sha256": "61db6d4a99b72ecd018c5504816d5885d9b9d5215725e8b5e59799730a6b985d",
+      "bytes": 4827676,
+      "rows": 29976,
+      "seasons": "1977-2022"
+    },
+    "modern_RAPTOR_by_team.csv": {
+      "sha256": "a80bb5d24eb6b9742bb0c68aacf643144e7d39311b3b5aa12199b63d8d7de2aa",
+      "bytes": 1922974,
+      "rows": 7289,
+      "seasons": "2014-2022"
+    },
+    "README.md": {
+      "sha256": "5e3b8fd19aece5152e8e24b7bc0098abddbd23f519d2a3e3bb534d937ceb67b4",
+      "bytes": 4102
+    },
+    "LICENSE_fivethirtyeight_data": {
+      "sha256": "7e7170e3cebf88a9f60c7b8421418323c09304da1af4d5e90f4da1dc1c8a2661",
+      "bytes": 18650
+    }
+  }
+}
