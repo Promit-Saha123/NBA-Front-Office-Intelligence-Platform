@@ -1,6 +1,9 @@
 "use client";
 
 import type { ScenarioViewModel } from "@/lib/view-model";
+import { RotationComparisonTable } from "./RotationComparisonTable";
+import { ExplanationFactorsList } from "./ExplanationFactorsList";
+import { ScenarioDisclosuresPanel } from "./ScenarioDisclosuresPanel";
 import styles from "./ScenarioForm.module.css";
 
 export interface ScenarioSuccessPreviewProps {
@@ -12,33 +15,27 @@ export interface ScenarioSuccessPreviewProps {
   teamLabel: string;
   playerOutLabel: string;
   playerInLabel: string;
+  playerLabel: (playerId: string) => string;
 }
 
 /**
- * UI-002's temporary, minimal success confirmation — proves the full
- * request flow works. Static, non-live content: the "scenario completed"
- * announcement itself is ScenarioStatus's job (the live region), so this
- * panel doesn't duplicate it. Deliberately not the final results experience
- * (UI-003): no rotation comparison, no explanation factors, no full
- * disclosures panel — `data_version`, `minutes_method`,
- * `minutes_assumptions`, and `model_version` are all already present on
- * `viewModel` but intentionally not rendered here yet (decision 0007 §8
- * describes what UI-003 must surface in full). `attribution` is shown now
- * regardless, ahead of the rest — it's a CC BY 4.0 license obligation, not
- * cosmetic polish, so the first surface that renders a real scenario result
- * shouldn't ship without it even in a temporary preview. Adds no mapping or
- * calculation of its own beyond `.toFixed(3)` display rounding
- * (scenario-engine.md: "may be rounded for display while preserving full
- * precision internally").
+ * UI-003's full results and disclosures experience: the summary grid, the
+ * before/after rotation comparison, the explanation factors, and the full
+ * disclosures panel (decision 0007 §8). Adds no mapping or calculation of
+ * its own beyond display formatting (`.toFixed()` rounding, the rotation
+ * table's 240-minute display sum) — scenario-engine.md: "may be rounded for
+ * display while preserving full precision internally".
  */
 export function ScenarioSuccessPreview({
   viewModel,
   teamLabel,
   playerOutLabel,
   playerInLabel,
+  playerLabel,
 }: ScenarioSuccessPreviewProps) {
   return (
-    <div className={styles.successPreview}>
+    <section className={styles.successPreview} aria-labelledby="results-heading">
+      <h2 id="results-heading">Scenario result</h2>
       <dl className={styles.successGrid}>
         <div>
           <dt>Team</dt>
@@ -57,12 +54,6 @@ export function ScenarioSuccessPreview({
           <dd>{playerInLabel}</dd>
         </div>
         <div>
-          <dt>Provider</dt>
-          <dd>
-            {viewModel.disclosures.providerType} ({viewModel.disclosures.providerVersion})
-          </dd>
-        </div>
-        <div>
           <dt>Original contribution</dt>
           <dd>{viewModel.baselineContribution.toFixed(3)}</dd>
         </div>
@@ -75,7 +66,26 @@ export function ScenarioSuccessPreview({
           <dd>{viewModel.contributionChange.toFixed(3)}</dd>
         </div>
       </dl>
-      <p className={styles.attribution}>{viewModel.disclosures.attribution.join(" · ")}</p>
-    </div>
+
+      <section className={styles.resultSection} aria-labelledby="rotation-heading">
+        <h3 id="rotation-heading">Rotation comparison</h3>
+        <RotationComparisonTable
+          rows={viewModel.rotationComparison}
+          outgoingPlayerId={viewModel.playerOutId}
+          incomingPlayerId={viewModel.playerInId}
+          playerLabel={playerLabel}
+        />
+        {viewModel.allocationRepairs.length > 0 ? (
+          <p className={styles.help}>Allocation adjustments: {viewModel.allocationRepairs.join("; ")}</p>
+        ) : null}
+      </section>
+
+      <section className={styles.resultSection} aria-labelledby="factors-heading">
+        <h3 id="factors-heading">What changed</h3>
+        <ExplanationFactorsList factors={viewModel.explanationFactors} />
+      </section>
+
+      <ScenarioDisclosuresPanel disclosures={viewModel.disclosures} season={viewModel.season} />
+    </section>
   );
 }

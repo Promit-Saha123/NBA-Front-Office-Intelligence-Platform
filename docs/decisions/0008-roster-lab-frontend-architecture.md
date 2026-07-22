@@ -530,6 +530,120 @@ suspends, the `<Suspense>` boundary in `page.tsx` is exercised by no test —
 acceptable given Playwright/e2e is already explicitly deferred, but a real
 gap if a future regression there needs catching.
 
+## UI-003 Implementation Notes (2026-07-21)
+
+UI-003 (the full results and disclosures experience, replacing
+`ScenarioSuccessPreview`'s temporary minimal grid) added three new
+presentation components — `RotationComparisonTable.tsx`,
+`ExplanationFactorsList.tsx`, `ScenarioDisclosuresPanel.tsx` — composed by
+the rewritten `ScenarioSuccessPreview.tsx`. No new backend surface, no new
+fetching: `postScenario()`'s existing response and `toScenarioViewModel()`
+already carried everything needed.
+
+### Display-only arithmetic stays out of the view-model, same as UI-002's `.toFixed()` precedent
+
+`RotationComparisonTable.tsx` sums already-fetched per-player minutes into
+a visible totals row (scenario-rules: "minutes total exactly 240" must be
+visible). This is arithmetic on data already present in the validated
+response — a footer sum, not a new domain claim — so it stays in the
+component, not `view-model.ts`, consistent with the "DTO-to-presentation
+coupling" decision above (option 3, a view-model that also formats/derives
+display values, was rejected) and with `.toFixed(3)` display rounding
+already living in `ScenarioSuccessPreview.tsx` since UI-002. The same
+reasoning applies to `frontend/src/lib/format.ts`'s one shared
+`humanizeSnakeCase()` helper (relabels an already-present value for
+display, e.g. `"team_contribution"` → `"Team contribution"`; never
+fabricates one) — a new file rather than inline duplication only because
+two of the three new components needed the identical one-liner.
+
+### Decision 0007 §8's attribution footer is static required copy, not a substitute for the response's own citation
+
+`ScenarioDisclosuresPanel.tsx` renders §8's exact attribution-footer
+sentence as a hardcoded constant (`ATTRIBUTION_FOOTER`) *and*, on a
+separate line, the response's own `attribution` field (the provider's
+specific citation, e.g. RAPTOR's manifest-sourced string). An earlier
+version substituted the response field for the required footer text
+entirely — the `frontend-architect` review caught this as dropping the
+NBA-Elo team-game attribution and the non-affiliation legal disclaimer
+from the deployed UI. The footer is treated as an app-wide provenance/
+legal statement (naming every pinned, licensed source this product is
+built from) rather than a per-response functional claim, so it renders
+unconditionally regardless of which provider a given scenario used.
+
+### Outgoing player always gets a zero-minute row; the incoming player sometimes gets none at all
+
+`backend/scenario/service.py` explicitly appends the outgoing player to
+`scenario_rotation` at 0 minutes — but has no equivalent explicit append
+for the incoming player. A live integration boot (uvicorn + a real
+`POST /scenarios` call — the deepest verification available, since no
+browser-automation tooling is installed in this environment and standing
+one up now would contradict this ADR's own Playwright deferral) surfaced a
+real case: when the incoming player's inherited minutes weight is too low
+for the minutes allocator's rotation-size cap, they are excluded from
+`scenario_rotation` entirely, with no zero-minute placeholder. Verified
+this does not silently confuse the UI: `allocation_repairs` already names
+the excluded player_id, and that text is already rendered directly under
+the rotation table — no code change was needed, only a regression test
+(`ScenarioForm.test.tsx`) locking in the exact response shape observed.
+
+### Review findings applied (UI-003)
+
+The `architecture-review` skill (self-checked against its own checklist,
+clean) and the `frontend-architect` subagent both reviewed the UI-003
+code; the subagent found 8 issues, 6 fixed before landing:
+
+1. **Attribution footer substitution** — see above.
+2. **Heading hierarchy skipped `<h1>` (page title) straight to `<h3>`**
+   (`ScenarioSuccessPreview.tsx`'s two `<section>`s), with no `<h2>`
+   anywhere. Fixed: the whole results panel is now its own
+   `<section aria-labelledby="results-heading"><h2>Scenario result</h2>`,
+   with the rotation/factors/disclosures sub-sections as `<h3>` children.
+3. **The disclosures panel had no heading or labeled landmark**, unlike
+   its two sibling sections, despite carrying decision-0007-mandated,
+   non-optional content — a screen-reader user navigating by heading or
+   landmark had no way to jump to it. Fixed: wrapped in the same
+   `<section aria-labelledby="disclosures-heading"><h3>` pattern.
+4. **`ExplanationFactorsList.tsx` imported its factors type from
+   `@/lib/api/scenarios` instead of `@/lib/view-model`** — both alias the
+   same underlying type today (the view-model doesn't reshape this field),
+   so this wasn't a transport-isolation violation, but it was inconsistent
+   with its two sibling components, which both import from the view-model.
+   Fixed for consistency: one import source for anything hanging off
+   `ScenarioViewModel`.
+5. **Unnecessary `"use client"` on three purely presentational
+   components** (`RotationComparisonTable.tsx`, `ExplanationFactorsList.tsx`,
+   `ScenarioDisclosuresPanel.tsx`) — none use state, effects, refs, or
+   browser APIs, and none cross a Server-Component `children` boundary
+   where the directive would matter. Removed as misleading
+   documentation-by-code.
+6. **The required RAPTOR/synthetic provider badge was styled as plain
+   muted help text**, visually indistinguishable from the disclaimers
+   around it, unlike the historical-only banner in the same panel. Fixed:
+   reuses the same `badge` class as the banner.
+
+Two findings were left as documented judgment calls, not fixed:
+- A `useMemo` was tried for the player-name-lookup `Map` built in
+  `ScenarioForm.tsx`, then reverted — eslint's `react-hooks/exhaustive-deps`
+  flagged the memo's own dependencies (`?? []` fallbacks) as unstable,
+  which would have required memoizing those inputs too for the memo to
+  actually hold; at this season's roster scale (hundreds of entries, not
+  thousands, on renders already re-deriving the same lists into `<select>`
+  options), the plain rebuild is simpler and costs nothing measurable.
+- `RotationComparisonTable.tsx`'s totals row displays whatever the sum
+  comes out to with no visual flag if it ever failed to equal 240 (e.g. a
+  future minutes-allocator regression). Noted as a real gap worth closing
+  if scenario-rules' 240-minute invariant is ever violated in practice, not
+  required now since the displayed value has never mismatched in testing.
+
+Impeccable's deterministic detector caught one real finding this session,
+distinct from the subagent's: an early draft of `RotationComparisonTable.tsx`
+marked the incoming-player row with a `border-left: 3px solid
+var(--color-accent)` stripe, flagged as a `side-tab` pattern — "the most
+recognizable tell of AI-generated UIs." Removed; the row is now
+distinguished only by its "Added"/"Removed" text label (bold, accent-
+colored) plus a light background tint on the outgoing row, keeping this
+project's stated one-accent-hue restraint intact.
+
 ## Consequences
 
 * `backend/api/schemas.py` becomes a de facto public contract the moment a

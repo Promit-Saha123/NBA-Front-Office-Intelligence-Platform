@@ -111,6 +111,15 @@ export function ScenarioForm() {
     seasonPlayerList,
   );
 
+  // One name resolver for every player_id shown in the result (team roster ∪
+  // season players covers both the outgoing and incoming player either way).
+  // Not memoized: rebuilt from a couple hundred entries at most, on renders
+  // that are already re-rendering these same lists into <select> options.
+  const playerNameById = new Map<string, string>();
+  for (const p of seasonPlayerList) playerNameById.set(p.player_id, p.name);
+  for (const p of rosterPlayers) playerNameById.set(p.player_id, p.name);
+  const playerLabel = (playerId: string) => playerNameById.get(playerId) ?? playerId;
+
   // Defense in depth for direct URL edits that bypass the dropdown filtering above.
   // Each is only assertable once its supporting data has actually loaded —
   // "not found in the list yet" must not be conflated with "still loading."
@@ -280,14 +289,9 @@ export function ScenarioForm() {
         <ScenarioSuccessPreview
           viewModel={successViewModel}
           teamLabel={selection.teamId ?? successViewModel.teamId}
-          playerOutLabel={
-            playerOutOptions.find((o) => o.value === successViewModel.playerOutId)?.label ??
-            successViewModel.playerOutId
-          }
-          playerInLabel={
-            seasonPlayers.data?.players.find((p) => p.player_id === successViewModel.playerInId)
-              ?.name ?? successViewModel.playerInId
-          }
+          playerOutLabel={playerLabel(successViewModel.playerOutId)}
+          playerInLabel={playerLabel(successViewModel.playerInId)}
+          playerLabel={playerLabel}
         />
       ) : null}
     </form>

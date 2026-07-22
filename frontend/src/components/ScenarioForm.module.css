@@ -142,3 +142,116 @@
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
+
+.resultSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.rotationTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.rotationTable caption {
+  text-align: left;
+  margin-bottom: 0.4rem;
+}
+
+.rotationTable th,
+.rotationTable td {
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.rotationTable tfoot th,
+.rotationTable tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--color-border);
+  border-bottom: none;
+}
+
+.rowOutgoing {
+  background: var(--color-accent-bg-tint);
+}
+
+.statusTag {
+  color: var(--color-accent-text);
+  font-weight: 700;
+}
+
+.factorList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.factorItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.factorItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.factorMetric {
+  font-weight: 600;
+}
+
+.disclosures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.disclosureBanner {
+  margin: 0;
+  display: block;
+  width: fit-content;
+}
+
+.disclosuresGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.disclosuresGrid dt {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.disclosuresGrid dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.assumptionsList {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}

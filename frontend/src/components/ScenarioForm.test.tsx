@@ -500,6 +500,155 @@ describe("error display", () => {
   });
 });
 
+const RESULTS_RESPONSE: ScenarioResponse = {
+  ...VALID_RESPONSE,
+  baseline_rotation: [
+    { player_id: "curryst01", minutes: 200 },
+    { player_id: "barbole01", minutes: 40 },
+  ],
+  // Mirrors backend/scenario/service.py: the outgoing player is carried into
+  // scenario_rotation at 0 minutes, not omitted — never null in the real contract.
+  scenario_rotation: [
+    { player_id: "curryst01", minutes: 200 },
+    { player_id: "acyqu01", minutes: 40 },
+    { player_id: "barbole01", minutes: 0 },
+  ],
+  allocation_repairs: ["baseline: capped a player at the max"],
+  explanation_factors: [
+    {
+      metric: "team_contribution",
+      baseline_value: -1.83,
+      scenario_value: -1.87,
+      change: -0.04,
+      direction: "decrease",
+      importance: 1.0,
+    },
+  ],
+};
+
+describe("results and disclosures (UI-003)", () => {
+  async function submitAndGetResults() {
+    scenarioMocks.postScenario.mockResolvedValue(RESULTS_RESPONSE);
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    const button = screen.getByRole("button", { name: /run scenario/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await user.click(button);
+    await waitFor(() => expect(screen.getByText(/completed successfully/i)).toBeInTheDocument());
+  }
+
+  it("shows the rotation comparison with resolved player names and a 240-minute total on each side", async () => {
+    await submitAndGetResults();
+
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Stephen Curry")).toBeInTheDocument();
+    expect(within(table).getByText("Leandro Barbosa")).toBeInTheDocument();
+    expect(within(table).getByText("Quincy Acy")).toBeInTheDocument();
+
+    const rows = within(table).getAllByRole("row");
+    const totalRow = rows[rows.length - 1];
+    expect(within(totalRow).getAllByText("240.0")).toHaveLength(2);
+  });
+
+  it("labels the outgoing and incoming players as Removed/Added, not by color alone", async () => {
+    await submitAndGetResults();
+
+    const table = screen.getByRole("table");
+    const barbosaRow = within(table).getByText("Leandro Barbosa").closest("tr")!;
+    expect(within(barbosaRow).getByText("Removed")).toBeInTheDocument();
+    const acyRow = within(table).getByText("Quincy Acy").closest("tr")!;
+    expect(within(acyRow).getByText("Added")).toBeInTheDocument();
+  });
+
+  it("shows the allocation repairs note when the response includes one", async () => {
+    await submitAndGetResults();
+    expect(screen.getByText(/capped a player at the max/i)).toBeInTheDocument();
+  });
+
+  it("renders explanation factors traceable to the calculated baseline/scenario values", async () => {
+    await submitAndGetResults();
+    expect(screen.getByText("Team contribution")).toBeInTheDocument();
+    expect(screen.getByText(/-1\.830 → -1\.870/)).toBeInTheDocument();
+    expect(screen.getByText(/Decreased/)).toBeInTheDocument();
+  });
+
+  it("renders the historical-prototype banner, provider badge, and not-a-prediction disclaimer", async () => {
+    await submitAndGetResults();
+    expect(
+      screen.getByText(/historical prototype.*simulates roster scenarios from the 2014-15 nba season/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/historical raptor benchmark.*fivethirtyeight's raptor dataset/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/scenario estimates describe a historical what-if under stated assumptions/i),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the required attribution footer verbatim, alongside the provider's own citation", async () => {
+    await submitAndGetResults();
+    expect(
+      screen.getByText(/team game data: nba elo by fivethirtyeight.*not affiliated with or endorsed by fivethirtyeight, abc news, or the nba/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/FiveThirtyEight NBA RAPTOR data, CC BY 4\.0/)).toBeInTheDocument();
+  });
+
+  it("renders an explicit not-applicable state for model_version, never hiding the field", async () => {
+    await submitAndGetResults();
+    expect(screen.getByText(/not applicable.*no trained model/i)).toBeInTheDocument();
+  });
+
+  it("shows the synthetic-provider badge instead when that provider was used", async () => {
+    scenarioMocks.postScenario.mockResolvedValue({
+      ...RESULTS_RESPONSE,
+      provider_type: "synthetic",
+      contribution_epistemic_type: "synthetic_estimate",
+    });
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    const button = screen.getByRole("button", { name: /run scenario/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await user.click(button);
+
+    await waitFor(() =>
+      expect(screen.getByText(/synthetic contribution estimate.*not derived from real player data/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows the minutes method and minutes assumptions", async () => {
+    await submitAndGetResults();
+    expect(screen.getByText("heuristic-v1")).toBeInTheDocument();
+    expect(screen.getByText(/total minutes: 240/i)).toBeInTheDocument();
+  });
+
+  it("explains via allocation_repairs, rather than silently omitting a row, when the incoming player is cut by the rotation-size cap", async () => {
+    // Real shape observed from a live backend call: when the incoming
+    // player's inherited minutes weight is too low for the rotation-size
+    // cap, scenario_rotation has no entry for them at all (not even zero) —
+    // only the outgoing player is guaranteed a zero-minute entry.
+    scenarioMocks.postScenario.mockResolvedValue({
+      ...RESULTS_RESPONSE,
+      baseline_rotation: [{ player_id: "curryst01", minutes: 240 }],
+      scenario_rotation: [
+        { player_id: "curryst01", minutes: 240 },
+        { player_id: "barbole01", minutes: 0 },
+      ],
+      allocation_repairs: ["scenario: excluded (rotation size limit): ['acyqu01']"],
+    });
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    const button = screen.getByRole("button", { name: /run scenario/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await user.click(button);
+    await waitFor(() => expect(screen.getByText(/completed successfully/i)).toBeInTheDocument());
+
+    const table = screen.getByRole("table");
+    expect(within(table).queryByText("Quincy Acy")).not.toBeInTheDocument();
+    expect(screen.getByText(/excluded \(rotation size limit\): \['acyqu01'\]/)).toBeInTheDocument();
+  });
+});
+
 describe("accessibility", () => {
   it("gives every field a programmatic accessible name", async () => {
     render(<ScenarioForm />);
