@@ -45,3 +45,10 @@ and re-evaluation triggers.
   fixtures via a contribution-provider abstraction (RAPTOR benchmark / synthetic
   / future PCE); seed season 2014-15; no paid data, NBA consent, or PCE required
   for release (2026-07-20).
+* [0008 — Roster Lab Frontend Architecture](0008-roster-lab-frontend-architecture.md) —
+  **Accepted**: first Next.js vertical slice over `POST /scenarios` — client
+  component (no Server Actions/RSC data-fetching), API types generated from
+  FastAPI's OpenAPI schema and validated at the one fetch boundary, local
+  component state synced to URL search params (no state library, no
+  TanStack Query for v1), a thin reshape-only view-model boundary, and no new
+  backend/database/auth (2026-07-21).

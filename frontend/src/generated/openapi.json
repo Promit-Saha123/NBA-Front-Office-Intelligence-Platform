@@ -1,0 +1,596 @@
+{
+  "components": {
+    "schemas": {
+      "ContributionProviderChoice": {
+        "description": "The contribution providers exposed over HTTP (backend/providers/).\n\nNo default: the domain layer never falls back from one provider to\nanother (backend/providers/base.py), so the API requires an explicit\nchoice on every request rather than inventing one.",
+        "enum": [
+          "historical_benchmark",
+          "synthetic"
+        ],
+        "title": "ContributionProviderChoice",
+        "type": "string"
+      },
+      "EpistemicType": {
+        "description": "Epistemic category a value belongs to (scenario-engine.md \u00a73, decision 0007 \u00a72).",
+        "enum": [
+          "historical_benchmark",
+          "synthetic_estimate",
+          "model_prediction",
+          "heuristic_assumption",
+          "deterministic_calculation",
+          "descriptive_interpretation"
+        ],
+        "title": "EpistemicType",
+        "type": "string"
+      },
+      "ExplanationFactorResponse": {
+        "properties": {
+          "baseline_value": {
+            "title": "Baseline Value",
+            "type": "number"
+          },
+          "change": {
+            "title": "Change",
+            "type": "number"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "importance": {
+            "title": "Importance",
+            "type": "number"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "scenario_value": {
+            "title": "Scenario Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "baseline_value",
+          "scenario_value",
+          "change",
+          "direction",
+          "importance"
+        ],
+        "title": "ExplanationFactorResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "PlayerSummaryResponse": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "player_id": {
+            "title": "Player Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "player_id",
+          "name"
+        ],
+        "title": "PlayerSummaryResponse",
+        "type": "object"
+      },
+      "ProviderType": {
+        "description": "Contribution-provider implementation identity (decision 0007 \u00a77).",
+        "enum": [
+          "historical_raptor_benchmark",
+          "synthetic"
+        ],
+        "title": "ProviderType",
+        "type": "string"
+      },
+      "RosterPlayerResponse": {
+        "properties": {
+          "minutes": {
+            "title": "Minutes",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "player_id": {
+            "title": "Player Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "player_id",
+          "name",
+          "minutes"
+        ],
+        "title": "RosterPlayerResponse",
+        "type": "object"
+      },
+      "RotationEntryResponse": {
+        "properties": {
+          "minutes": {
+            "title": "Minutes",
+            "type": "number"
+          },
+          "player_id": {
+            "title": "Player Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "player_id",
+          "minutes"
+        ],
+        "title": "RotationEntryResponse",
+        "type": "object"
+      },
+      "ScenarioRequest": {
+        "properties": {
+          "contribution_provider": {
+            "$ref": "#/components/schemas/ContributionProviderChoice"
+          },
+          "player_in_id": {
+            "title": "Player In Id",
+            "type": "string"
+          },
+          "player_out_id": {
+            "title": "Player Out Id",
+            "type": "string"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "team_id",
+          "season",
+          "player_out_id",
+          "player_in_id",
+          "contribution_provider"
+        ],
+        "title": "ScenarioRequest",
+        "type": "object"
+      },
+      "ScenarioResponse": {
+        "properties": {
+          "allocation_repairs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allocation Repairs",
+            "type": "array"
+          },
+          "attribution": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "baseline_contribution": {
+            "title": "Baseline Contribution",
+            "type": "number"
+          },
+          "baseline_rotation": {
+            "items": {
+              "$ref": "#/components/schemas/RotationEntryResponse"
+            },
+            "title": "Baseline Rotation",
+            "type": "array"
+          },
+          "contribution_change": {
+            "title": "Contribution Change",
+            "type": "number"
+          },
+          "contribution_epistemic_type": {
+            "$ref": "#/components/schemas/EpistemicType"
+          },
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "explanation_factors": {
+            "items": {
+              "$ref": "#/components/schemas/ExplanationFactorResponse"
+            },
+            "title": "Explanation Factors",
+            "type": "array"
+          },
+          "historical_only": {
+            "title": "Historical Only",
+            "type": "boolean"
+          },
+          "minutes_assumptions": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Minutes Assumptions",
+            "type": "object"
+          },
+          "minutes_method": {
+            "title": "Minutes Method",
+            "type": "string"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "player_in_id": {
+            "title": "Player In Id",
+            "type": "string"
+          },
+          "player_out_id": {
+            "title": "Player Out Id",
+            "type": "string"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "provider_version": {
+            "title": "Provider Version",
+            "type": "string"
+          },
+          "scenario_contribution": {
+            "title": "Scenario Contribution",
+            "type": "number"
+          },
+          "scenario_rotation": {
+            "items": {
+              "$ref": "#/components/schemas/RotationEntryResponse"
+            },
+            "title": "Scenario Rotation",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "team_id",
+          "season",
+          "player_out_id",
+          "player_in_id",
+          "baseline_rotation",
+          "scenario_rotation",
+          "baseline_contribution",
+          "scenario_contribution",
+          "contribution_change",
+          "provider_type",
+          "provider_version",
+          "data_version",
+          "contribution_epistemic_type",
+          "minutes_method",
+          "minutes_assumptions",
+          "allocation_repairs",
+          "explanation_factors",
+          "historical_only",
+          "attribution",
+          "model_version"
+        ],
+        "title": "ScenarioResponse",
+        "type": "object"
+      },
+      "SeasonPlayersResponse": {
+        "properties": {
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerSummaryResponse"
+            },
+            "title": "Players",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          }
+        },
+        "required": [
+          "season",
+          "players"
+        ],
+        "title": "SeasonPlayersResponse",
+        "type": "object"
+      },
+      "TeamRosterResponse": {
+        "properties": {
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/RosterPlayerResponse"
+            },
+            "title": "Players",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "season",
+          "team_id",
+          "players"
+        ],
+        "title": "TeamRosterResponse",
+        "type": "object"
+      },
+      "TeamsResponse": {
+        "properties": {
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "teams": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Teams",
+            "type": "array"
+          }
+        },
+        "required": [
+          "season",
+          "teams"
+        ],
+        "title": "TeamsResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "NBA Front Office Intelligence Platform API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/scenarios": {
+      "post": {
+        "operationId": "create_scenario_scenarios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Scenario"
+      }
+    },
+    "/seasons/{season}/players": {
+      "get": {
+        "operationId": "list_players_seasons__season__players_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "season",
+            "required": true,
+            "schema": {
+              "title": "Season",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeasonPlayersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Players"
+      }
+    },
+    "/seasons/{season}/teams": {
+      "get": {
+        "operationId": "list_teams_seasons__season__teams_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "season",
+            "required": true,
+            "schema": {
+              "title": "Season",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Teams"
+      }
+    },
+    "/seasons/{season}/teams/{team_id}/roster": {
+      "get": {
+        "operationId": "get_team_roster_seasons__season__teams__team_id__roster_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "season",
+            "required": true,
+            "schema": {
+              "title": "Season",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team_id",
+            "required": true,
+            "schema": {
+              "title": "Team Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRosterResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Team Roster"
+      }
+    }
+  }
+}
