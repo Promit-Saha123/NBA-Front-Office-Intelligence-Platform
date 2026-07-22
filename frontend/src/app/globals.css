@@ -1,0 +1,76 @@
+:root {
+  --color-bg: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-border: #e2e0da;
+  --color-text: #201d1a;
+  --color-text-muted: #625d55;
+  --color-accent: #c1541f;
+  --color-accent-contrast: #ffffff;
+  /* Darker than --color-accent specifically for text on --color-bg/--color-surface:
+     --color-accent at text weight measures ~4.27:1 there, short of the 4.5:1 body-text
+     floor — this token exists so an accent-colored label is never under-contrast. */
+  --color-accent-text: #9c3e16;
+  --color-accent-bg-tint: #f7e3d8;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-5: 4rem;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3);
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+a {
+  color: inherit;
+}
+
+/* Accessible focus outline, visible on every interactive element — never
+   removed for the sake of visual quietness (decision 0008: accessibility
+   is required now, not deferred). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* A status badge, not a decorative section eyebrow: used exactly once per
+   page for a real disclosure (historical-only scope, provider identity),
+   never as repeating above-every-section scaffolding. */
+.badge {
+  display: inline-block;
+  background: var(--color-accent-bg-tint);
+  color: var(--color-accent-text);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 0.3em 0.85em;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
