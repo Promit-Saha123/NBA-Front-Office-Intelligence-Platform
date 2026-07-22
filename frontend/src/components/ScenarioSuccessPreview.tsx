@@ -1,5 +1,3 @@
-"use client";
-
 import type { ScenarioViewModel } from "@/lib/view-model";
 import { RotationComparisonTable } from "./RotationComparisonTable";
 import { ExplanationFactorsList } from "./ExplanationFactorsList";

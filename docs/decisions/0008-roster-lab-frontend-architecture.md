@@ -644,6 +644,91 @@ distinguished only by its "Added"/"Removed" text label (bold, accent-
 colored) plus a light background tint on the outgoing row, keeping this
 project's stated one-accent-hue restraint intact.
 
+## Local Run and Deployment-Config Readiness (2026-07-21)
+
+A session focused on making the app easy to run and inspect locally, and on
+confirming the local-to-public-deployment transition really is an
+environment-variable change rather than a code change, per this ADR's §6
+decision. No new architecture: `NEXT_PUBLIC_API_URL` (frontend) and
+`FRONTEND_ORIGINS` (backend) were already the single, centralized
+configuration points this ADR called for — verified, not rebuilt. Full
+local-run documentation lives in the root `README.md`'s "Local Development"
+section, not duplicated here.
+
+### A real backend integration boot and a real browser both used for verification
+
+`uv run uvicorn` + a real `POST /scenarios` call (used in the UI-003
+session) and, this session, a full Playwright-driven Microsoft Edge session
+(via `channel: "msedge"` against the browser already installed on this
+machine — not installed as a project dependency, not committed to
+`package.json`) against both `pnpm dev` and `uv run uvicorn` running
+together were the deepest verification available, since no
+`chromium-cli`/Playwright project dependency exists per this ADR's own
+"Playwright / e2e: Defer" line. This surfaced two real, previously-
+undetected findings that the jsdom/mocked-router unit tests could not have
+caught, since they assert *that a call happened*, not *what a real browser's
+navigation history did as a result*:
+
+1. **A duplicate, inconsistently-worded error.** Navigating to a URL with an
+   unrecognized `team_id` showed "That team wasn't found for this season."
+   on the team field (the dedicated `teamNotFoundInvalid` check added in
+   UI-002's own review) *and* "That team wasn't found for the selected
+   season." on the player-out field (the roster-fetch's own
+   `teamRoster.error?.message`, which the UI-002 fix never suppressed once
+   the team-field check already covered the same underlying failure).
+   Fixed: `ScenarioForm.tsx`'s player-out `errorText` now suppresses the
+   roster-fetch error when `teamNotFoundInvalid` is already true.
+2. **`commitSelection()`'s `router.push()` never actually creates a new,
+   back-navigable browser history entry.** Confirmed via `history.length`
+   staying flat across two real, distinct submissions (different providers)
+   in a live browser — not a script artifact; reproduced identically with
+   plain `window.history.back()` bypassing Playwright's own navigation
+   helpers. Root cause: `navigate()` computes `href` from the *current*
+   `selection`, which every preceding `updateSelection()` `replace()` call
+   already synced into the URL bar — by the time `commitSelection()` fires,
+   its `push()` target is structurally identical to what `replace()` just
+   set, and Next.js's router (like the underlying History API in practice)
+   does not create a distinguishable entry for a push to an unchanged URL.
+   **This ADR's "push vs. replace" design (§3, "URL-state behavior") does
+   not achieve its stated goal** ("so back/forward moves between submitted
+   scenarios") as actually built — every other property of the URL-state
+   design still holds (shareable links, refresh-safe, no response data in
+   the URL, no invented params), only the specific back/forward-between-
+   submissions promise is unmet. Not fixed this session: a real fix needs a
+   deliberate design decision (e.g., a distinguishing marker between
+   "editing" and "committed" state, which the current 5-clean-params
+   design has no room for without inventing a param) that is out of scope
+   for a local-run/config-hardening pass — tracked as a follow-up, not
+   silently corrected or left undocumented.
+
+### Two more real, fixable issues the same review found
+
+3. **`allocation_repairs` rendered raw Python list syntax** (e.g.
+   `excluded (rotation size limit): ['holidju01', 'ezelife01', ...]`)
+   directly in the disclosures panel — a real screenshot a portfolio
+   reviewer might see. Fixed in `backend/minutes/allocator.py`: the four
+   repair-message call sites now join excluded-player-id lists with `, `
+   instead of interpolating the raw Python list/repr. No repair *logic*
+   changed, no existing test asserted the exact bracket/quote formatting.
+4. **The rotation-comparison table's mandatory horizontal scroll on mobile
+   (`.tableWrap`'s `overflow-x: auto`, already correct — no page-level
+   overflow) had no visual affordance**, confirmed via a real 390px-wide
+   screenshot showing columns cut off with no hint more existed. Fixed:
+   `RotationComparisonTable.tsx` now renders a "Scroll sideways to see every
+   column →" hint, CSS-only (`.scrollHint`, `display: none` above 480px),
+   so it never appears on desktop. Table headers were also shortened
+   ("Baseline minutes" → "Baseline") to reduce unnecessary overflow
+   pressure.
+
+### `/favicon.ico` 404 on every page load
+
+Every real page load 404'd on `/favicon.ico` (no favicon existed anywhere in
+`frontend/`), logging a browser-generated console error on every load —
+caught by this session's "no blocking console errors" smoke-test check.
+Fixed with a minimal hand-generated 16×16 ICO (stdlib `struct` only, no new
+dependency) at `frontend/src/app/favicon.ico`, filled with the app's one
+existing accent color — a placeholder, not a real design asset.
+
 ## Consequences
 
 * `backend/api/schemas.py` becomes a de facto public contract the moment a

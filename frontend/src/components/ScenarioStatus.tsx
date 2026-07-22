@@ -38,7 +38,7 @@ export function ScenarioStatus({ id, state }: ScenarioStatusProps) {
 
   if (state.status === "success") {
     return (
-      <div id={id} role="status" className={`${styles.status} ${styles.statusLoading}`}>
+      <div id={id} role="status" className={`${styles.status} ${styles.statusSuccess}`}>
         Scenario completed successfully.
       </div>
     );

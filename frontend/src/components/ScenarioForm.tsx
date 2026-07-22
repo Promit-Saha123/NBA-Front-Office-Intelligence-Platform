@@ -20,6 +20,9 @@ import styles from "./ScenarioForm.module.css";
 
 const SEASON = SUPPORTED_SEASONS[0];
 
+// Keyed by the request enum (ContributionProviderChoice), not the response enum
+// (ProviderType) ScenarioDisclosuresPanel's PROVIDER_BADGE_TEXT uses — two distinct
+// backend enums for "which provider," each map typed against its own source of truth.
 const PROVIDER_LABELS: Record<ContributionProviderChoice, string> = {
   historical_benchmark: "Historical RAPTOR benchmark",
   synthetic: "Synthetic estimate (demo values)",
@@ -233,7 +236,12 @@ export function ScenarioForm() {
           errorText={
             playerOutNotOnRosterInvalid
               ? "That player isn't on this team's roster."
-              : teamRoster.error?.message
+              // A team-not-found roster fetch failure is already reported on the team
+              // field itself (teamNotFoundInvalid, below) — showing it here too would
+              // duplicate the same problem with inconsistent wording in two places.
+              : teamNotFoundInvalid
+                ? undefined
+                : teamRoster.error?.message
           }
           required
         />

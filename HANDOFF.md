@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-22
 
 ---
 
@@ -16,9 +16,105 @@ core (schemas, contribution providers, minutes allocator, scenario service) for 
 **2014-15 season** is built and tested, with `POST /scenarios` plus 3 read-only
 lookup GET routes (teams/roster/players) over it. The Next.js frontend now has a
 complete Roster Lab vertical slice — form (UI-001 infra + UI-002) through full
-results and disclosures (UI-003) — built, tested, and reviewed. **UI-004 (frontend
-component tests) is effectively done alongside UI-002/UI-003; UI-005 (accessibility/
-design/security review pass) is next.** No database, no trained model exist.
+results and disclosures (UI-003) — built, tested, and reviewed. **The complete
+app now runs locally end to end, verified with a real browser in a prior
+session** (see "Local run verification" below); centralized config
+(`NEXT_PUBLIC_API_URL` / `FRONTEND_ORIGINS`) and CORS were confirmed already
+correct from prior sessions, not rebuilt. **UI-004 (frontend component tests)
+is done alongside UI-002/UI-003; UI-005 (accessibility/design/security review
+pass) is now done** (2026-07-22) — three of four reviews run
+(architecture-review, frontend-architect, security-review — all clean or
+fixed; `/impeccable` still needs the user's own interactive `init`) — see
+`HANDOFF-roster-lab-issues.md`'s UI-005 entry for the full findings/fixes
+list and "Portfolio Roadmap" below for how this relates to eventual public
+deployment. No database, no trained model exist.
+
+## Portfolio Roadmap
+
+**Answered directly by the user (2026-07-21), resolving the Council's open
+question below: this is nowhere close to being deployed via a public URL
+for now.** Do not start deployment work, hosting selection, or a Vercel
+project on your own initiative — treat "not deploying yet" as the current
+answer, not just an unasked question, until the user says otherwise.
+
+> The current target is a polished working local application. A public URL
+> is the intended final portfolio outcome, likely using Vercel for the
+> Next.js frontend, but deployment will begin only after the local
+> experience is reviewed and approved.
+
+A clean private repository is acceptable during active development, but it
+is not the final portfolio deliverable. The eventual portfolio-ready
+definition includes: a public frontend URL, a stable public backend, a
+clear README, screenshots or demo media, an architecture explanation,
+methodology and limitations, reproducible setup, and clean repository
+history. None of that beyond the README/setup work has been implemented
+yet — this session deliberately scoped to "make it easy to run and inspect
+locally" plus deployment-readiness *configuration* (env vars, CORS), not
+deployment itself. **Nothing has been deployed, no Vercel project exists,
+and no backend hosting has been selected or provisioned.** Local-only
+development continues; revisit this roadmap only when the user raises
+deployment again.
+
+## Local run verification (2026-07-21)
+
+Ran the complete app locally (`uv run uvicorn backend.api.app:app --port
+8000` + `pnpm dev` in `frontend/`) and drove it with a real browser —
+Playwright's Node API against Microsoft Edge, already installed on this
+machine (`channel: "msedge"`), used only as an ad-hoc verification tool this
+session (not installed as a project dependency, not added to
+`frontend/package.json`/`pnpm-lock.yaml` — decision 0008's own "Playwright /
+e2e: Defer" line still holds for the *project*). No `chromium-cli` or
+Playwright was available as an existing tool in this environment; this was
+the deepest verification achievable without standing up e2e infrastructure
+the project has explicitly deferred.
+
+**All 15 items from the smoke-test checklist were exercised for real**
+(real 2014-15 data, both providers, real CORS, real error responses) —
+14 confirmed working correctly; 1 (browser back/forward between submitted
+scenarios) confirmed **not** working as ADR 0008 describes, root-caused,
+documented, and deliberately left as a follow-up rather than papered over
+— see ADR 0008's new "Local Run and Deployment-Config Readiness" section
+for the full account of why (`commitSelection()`'s `push()` always targets
+a URL already-identical to what the preceding `replace()` calls set, so it
+never creates a distinguishable history entry).
+
+**Four real, concrete issues found and fixed** (all confirmed via
+before/after screenshots, not just code inspection):
+1. `allocation_repairs` disclosure text leaked raw Python list syntax
+   (`['holidju01', 'ezelife01', ...]`) — fixed in
+   `backend/minutes/allocator.py` (comma-joined, no brackets/quotes; no
+   repair logic changed).
+2. The "team not found" error appeared twice, worded differently, on two
+   different fields — fixed in `ScenarioForm.tsx` (player-out's roster-fetch
+   error is now suppressed when the team field's own check already covers
+   it).
+3. The rotation-comparison table's mobile horizontal scroll had no visual
+   affordance (columns cut off with no hint) — fixed with a CSS-only
+   "Scroll sideways to see every column →" hint, shown only below 480px.
+4. Every page load 404'd on `/favicon.ico` (none existed), logging a
+   browser console error on every load — fixed with a minimal hand-built
+   16×16 ICO (stdlib `struct`, no new dependency) at
+   `frontend/src/app/favicon.ico`.
+
+**New test coverage added:** `tests/test_api_cors.py` (8 tests — origin
+parsing, whitespace/empty-entry handling, a real CORS preflight against an
+allowed vs. disallowed origin, credentials-disabled confirmation). Backend
+is now 98 tests, frontend still 97 (+ 3 codegen = 100) since the frontend
+fixes didn't need new tests beyond the existing coverage.
+
+Full command output, exact localhost URLs, and the local-development
+workflow itself are documented in the root `README.md`'s new "Local
+Development" section — not duplicated here.
+
+**This session's 11 changed/new files are uncommitted** (same standing rule
+as always — don't commit without asking first): `README.md`,
+`frontend/README.md`, `.env.example`, `frontend/.env.example`,
+`backend/minutes/allocator.py`, `docs/decisions/0008-...md`,
+`frontend/src/components/{ScenarioForm.tsx, ScenarioForm.module.css,
+RotationComparisonTable.tsx}`, `frontend/src/app/favicon.ico` (new),
+`tests/test_api_cors.py` (new). Run `git status` at the start of the next
+session before assuming anything — don't trust this list over the actual
+working tree if time has passed.
 
 **Correction (2026-07-21): this file previously claimed nothing had ever been
 committed to git. That was wrong** — there is a real commit history (a remote
@@ -255,6 +351,27 @@ Ruff and mypy both clean.
 
 ## Known gotchas / non-obvious facts worth remembering
 
+- **Real browser automation is available in this environment without adding
+  a project dependency**: Microsoft Edge is already installed
+  (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`), and
+  Playwright's Node API can drive it directly via
+  `chromium.launch({ channel: "msedge" })` — no Chromium download needed.
+  `npx playwright --version` works out of the box; to actually `import` it
+  in a script, `npm install playwright-core` in a scratch directory outside
+  the repo (never in `frontend/`) and run the script from there. This is
+  how this session's real browser smoke test worked with no `chromium-cli`
+  and no project-level Playwright dependency. Useful any time a future
+  session needs to verify something a jsdom-mocked test can't (real
+  browser history/navigation, real layout/overflow, real console errors) —
+  see this file's "Local run verification" section for what it caught that
+  the existing test suite couldn't.
+- **`frontend/src/app/favicon.ico` did not exist until this session** —
+  every page load 404'd on it, logging a console error. Generated with a
+  ~30-line stdlib-only Python script (raw `struct` packing, no Pillow, no
+  new dependency) rather than skipped; a minimal 16×16 solid-color icon
+  matching the app's one accent color, not a real design asset. If a real
+  favicon/logo is ever designed, replace this file directly — no code
+  references it (Next.js App Router serves `app/favicon.ico` by convention).
 - **The `council` project skill (`.claude/skills/council/SKILL.md`) cannot be
   invoked via the Skill tool**, even on an explicit in-prose request ("use
   the council now") — it sets `disable-model-invocation: true`, which blocks
@@ -371,26 +488,61 @@ sessions (`ScenarioForm.tsx`, `ScenarioSuccessPreview.tsx`,
 genuinely round-tripped through their real UI-002-end-state content (not
 guessed — recovered from this session's own earlier tool-call history) before
 being restored to final, so the two-stage history for those files is
-accurate, not fabricated. The Council's verdict is otherwise still live: it
-recommended confirming with the user what "portfolio piece" concretely
-requires (a public deployed URL vs. a clean private repo) before deciding
-between UI-005/step 6/step 8 — that question was not yet asked this session
-and is worth raising before committing to a deployment target.
+accurate, not fabricated. The Council recommended confirming with the user what "portfolio piece"
+concretely requires (a public deployed URL vs. a clean private repo)
+before deciding between UI-005/step 6/step 8. **That question was asked
+and answered later the same day: not deploying for now** — see "Portfolio
+Roadmap" above, which is the current, binding answer.
 
 ## Exact next task
 
-**Run UI-005** (see `HANDOFF-roster-lab-issues.md`): the accessibility,
-design, architecture, and security review pass over the now-complete
-Roster Lab slice (UI-001 through UI-003; UI-004's test coverage is already
-folded in). Concretely: run `/security-review` (first real network
-boundary exposed to a browser — now 4 live endpoints, not 1, plus no
-auth/persistence/uploads yet); run `/impeccable init` (interactive — ask
-the user to run it) then `critique`/`audit`/`polish` against decision
-0008's visual direction, since only the deterministic detector has run so
-far each session; run `/review` or `/code-review` if either is available
-by then (neither has been in the available-skills listing in any session
-so far — re-check). Fix findings or explicitly record deferrals in
-`HANDOFF.md` — don't drop any silently.
+**UI-005 is done** (2026-07-22, see `HANDOFF-roster-lab-issues.md`'s UI-005
+entry for the full account). `architecture-review`, `frontend-architect`,
+and `/security-review` all ran clean or had their findings fixed; four
+small frontend fixes landed (a stray `"use client"`, a dead CSS-class
+reference, a success/loading visual-parity gap, a one-line clarifying
+comment). One item was deliberately **deferred, not fixed**:
+`ScenarioForm.tsx`'s ~60 lines of inline validation/derivation logic should
+eventually move to a pure module (`deriveScenarioFormState()`), matching
+the `url-state.ts` pattern — behavior is correct and tested today, so this
+is a structural cleanup to do deliberately next time that file is touched,
+not urgent on its own. `/impeccable init` is still pending — it's
+interactive and only the user can run it; ask them to, then follow with
+`critique`/`audit`/`polish`. `/review`/`/code-review` are still not usable
+(no PR; `code-review` still not in the skill listing).
+
+With UI-001 through UI-005 complete, the smallest credible Roster Lab loop
+(CLAUDE.md's "Development Priority" list, steps 1-5) is done end to end.
+**The next item in that list is step 6: editable minutes and sensitivity
+analysis** — letting a user adjust the heuristic minutes allocation rather
+than only accepting the default, per `docs/scenario-engine.md`. Read that
+spec's relevant section plus the `scenario-rules` skill before starting
+(240-minute-total and determinism constraints apply to any edit path, not
+just the default allocator). This is a real feature addition (new backend
+input, new frontend controls), not a review pass — treat it with the same
+rigor as UI-001/002/003 (architecture-review + frontend-architect on the
+frontend half, tests on both halves) rather than rushing it.
+
+**The Council's open question is resolved — see "Portfolio Roadmap" above:
+not deploying for now.** Don't re-raise it or start deployment/hosting work
+on your own initiative; stay focused on local development (step 6 and
+beyond) until the user brings deployment up again.
+
+**This session's changes remain uncommitted**, same standing rule as
+always (don't commit without asking first) — the UI-005 fixes are layered
+on top of the same 11 already-uncommitted files from the prior session,
+still no new files beyond what's already listed under "This session's
+changed/new files" above (that note is now one session stale — re-run
+`git status` before trusting either list).
+
+**Known follow-up, not yet scheduled:** fix `commitSelection()`'s
+`router.push()` never actually creating a back-navigable history entry
+(confirmed via real browser testing this session — see ADR 0008's "Local
+Run and Deployment-Config Readiness" section for the full root cause).
+Needs a deliberate design decision (how to distinguish "committed" from
+"editing" state in the URL without inventing a new query param), not a
+quick patch — scope it properly rather than hacking around it under time
+pressure next time it's picked up.
 
 Read `docs/decisions/0008-roster-lab-frontend-architecture.md`'s "UI-001
 Implementation Clarifications," "UI-002 Implementation Notes," and "UI-003
@@ -415,8 +567,9 @@ uv run mypy
 uv run pytest -q
 ```
 
-All three should pass clean (90 tests). If they don't, something changed since
-this file was last updated — trust the code over this document.
+All three should pass clean (**98 tests**, up from 90 — `tests/test_api_cors.py`
+added this session). If they don't, something changed since this file was
+last updated — trust the code over this document.
 
 ```bash
 cd frontend
@@ -430,15 +583,16 @@ All four should pass clean. `pnpm test:codegen` (3 more tests, 100 total)
 additionally requires `uv`/Python on PATH — see the pnpm-on-PATH gotcha
 above if `pnpm` itself isn't found.
 
-Manual smoke test (done this session, via `uv run uvicorn
-backend.api.app:app --port 8000` + curl, since no browser-automation
-tooling is installed in this environment — see UI-003's notes above):
-confirmed a real `POST /scenarios` round-trip end to end, which is also
-what surfaced the rotation-size-cap edge case recorded above. Re-run with
-`cd frontend && pnpm dev` alongside it and open the page in an actual
-browser next session if that tooling gap gets closed — full visual/pixel
-verification of UI-003 (as opposed to jsdom-rendered text/structure
-assertions) still hasn't happened.
+**Real browser smoke test done this session** (superseding UI-003's
+curl-only verification): `uv run uvicorn backend.api.app:app --port 8000`
++ `pnpm dev` in `frontend/`, driven by Playwright's Node API against
+Microsoft Edge (already installed on this machine, `channel: "msedge"`,
+used ad-hoc via a temporary `npm install playwright-core` in the scratchpad
+directory — **not** added to `frontend/package.json`/`pnpm-lock.yaml`, no
+project dependency changed). No `chromium-cli` was available. See "Local
+run verification" above for the full findings; the root README's "Local
+Development" section has the exact commands to repeat this by hand in a
+real browser without any automation tooling.
 
 ---
 

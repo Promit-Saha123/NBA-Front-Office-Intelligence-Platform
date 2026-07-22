@@ -118,23 +118,132 @@ a future slice finds a real gap.
 skill/CLAUDE.md testing expectations relevant to the frontend; no test
 requires a running FastAPI process.
 
-## UI-005: Run accessibility, design, architecture, and security reviews
+## Local Run and Deployment-Config Hardening — DONE (2026-07-21)
 
-Run `/review` on the completed slice (note: `/review` is scoped to GitHub
-PRs per its own description; if there's still no open PR, use whatever the
-working-diff equivalent is at that time — it wasn't in the available-skills
-listing as of UI-001 or UI-002). Run the `frontend-architect` subagent
-review (used successfully for both UI-001 and UI-002 — found real bugs
-both times, including a stale-request race in UI-002; keep using it). Run
-`/impeccable init` first (interactive — the user must run this; both UI-001
-and UI-002 only had the deterministic detector + manual contrast checks
-available, not the full LLM critique/audit flow), then
-`/impeccable critique`, `/impeccable audit`, and `/impeccable polish`
-against the visual direction in decision 0008 and the project's stated
-design references (CraftedNBA, Dunks & Threes). Run `/security-review` (no
-auth/persistence/uploads exist yet, but this is the first network boundary
-exposed to a browser — now with 4 live endpoints, not 1). Fix findings or
-explicitly label deferrals. Update `HANDOFF.md`.
+Not a numbered UI-00X slice (no new feature) — a pass making the existing
+app easy to run and inspect locally, and confirming the local-to-public
+deployment transition really is an env-var change, not a code change.
 
-**Acceptance:** all four reviews run; findings are either fixed or recorded
-as explicit, labeled deferrals — none silently dropped.
+Verified already correct (not rebuilt): `NEXT_PUBLIC_API_URL`
+(`frontend/src/lib/api/http.ts`) and `FRONTEND_ORIGINS`
+(`backend/api/app.py`) were already the single, centralized configuration
+points decision 0008 called for, with `CLIENT_CONFIGURATION_ERROR`
+handling, test injection via `vitest.config.ts`, and a safe dev-default
+CORS origin list already in place from UI-001. Added the one real gap:
+`tests/test_api_cors.py` (8 tests — origin parsing, whitespace/empty-entry
+handling, a real preflight against an allowed vs. disallowed origin,
+credentials-disabled confirmation).
+
+Ran the full app locally and drove it with a real browser (Playwright
+against the already-installed Microsoft Edge, ad-hoc, not a project
+dependency — see `HANDOFF.md`'s gotcha) across all 15 items of the local
+smoke-test checklist. 14 confirmed working with real 2014-15 data, both
+providers, real CORS, and real backend error responses. 1 (browser back/
+forward between submitted scenarios) confirmed broken as designed —
+documented in ADR 0008's new "Local Run and Deployment-Config Readiness"
+section, not fixed (needs a deliberate design decision, out of scope for
+this pass).
+
+Found and fixed 4 real issues via before/after screenshots: raw Python
+list syntax leaking into the allocation-repairs disclosure text; a
+duplicate "team not found" error shown with inconsistent wording on two
+fields; no visual affordance for the rotation table's mandatory mobile
+horizontal scroll; and a missing favicon causing a console error on every
+page load. Full detail in `HANDOFF.md`'s "Local run verification" section
+and ADR 0008.
+
+Updated `README.md` with a full "Local Development" section (runtime
+versions, install steps, start commands, localhost URLs, required env
+vars, connectivity verification, common setup failures, quality-check
+commands) and a "CORS and future deployment" section documenting the
+local→public env-var transition. Trimmed `frontend/README.md`'s default
+`create-next-app` boilerplate to a short pointer at the root README.
+
+**Explicitly not done, per this task's scope:** no deployment, no Vercel
+project, no backend hosting selection, no push to `origin/main`, no
+`vercel.json`, no Docker (none was needed — nothing here required a
+container). See `HANDOFF.md`'s "Portfolio Roadmap" for the recorded
+decision on sequencing actual deployment.
+
+## UI-005: Run accessibility, design, architecture, and security reviews — DONE (2026-07-22)
+
+Ran three of the four planned reviews (the fourth, `/impeccable`, needs an
+interactive `/impeccable init` only the user can run — still not done, see
+below):
+
+- **`architecture-review` skill** — self-checked the backend/API boundary
+  and the session's uncommitted diff. Clean: domain layer has zero FastAPI/
+  Pydantic imports, startup resources (`HistoricalSeasonData`, both
+  providers) still constructed once in `lifespan()`, routes stay thin with
+  error-mapping centralized in `backend/api/errors.py`, every provenance
+  field (`provider_type`/`provider_version`/`data_version`/
+  `contribution_epistemic_type`/`minutes_method`/`minutes_assumptions`/
+  `attribution`/`model_version`) still passed through unconditionally
+  (`model_version=None` included, never hidden). No findings.
+- **`frontend-architect` subagent** — full composition-level pass across
+  the whole `frontend/src/` tree (not just the newest slice), since UI-001
+  through UI-003 were each reviewed individually but never together. 4
+  findings + 1 judgment call, all minor (no fresh structural violations —
+  consistent with three prior clean review passes):
+  1. `ScenarioSuccessPreview.tsx` still had `"use client"` even though the
+     UI-003 review removed it from its three sibling components for the
+     same reason (no hooks/state/refs/browser APIs) — **fixed**, line
+     deleted.
+  2. `RotationComparisonTable.tsx` referenced a `styles.rowIncoming` CSS
+     class that doesn't exist (CSS Modules silently resolves it to
+     `undefined` — no build error, and harmless today since the incoming
+     row's "Added" text label already carries the distinction per decision
+     0008's UI-003 AI-tell fix) — **fixed**: replaced with `undefined` plus
+     a comment explaining the asymmetry is deliberate, so a future
+     contributor doesn't "fix" it by re-adding a tinted row.
+  3. `ScenarioStatus.tsx`'s success state was visually identical to its
+     loading state (same CSS classes) — a sighted user couldn't tell
+     "still calculating" from "just finished" without reading the text —
+     **fixed**: added a `.statusSuccess` class using only existing neutral
+     tokens (surface background + full-contrast text, no new color
+     introduced — the design's one accent color was already claimed by the
+     error state).
+  4. `ScenarioForm.tsx`'s validation/derivation logic (~60 lines:
+     `teamNotFoundInvalid`, `samePlayerInvalid`,
+     `playerInAlreadyOnRosterInvalid`, `playerOutNotOnRosterInvalid`,
+     `submitDisabled`, etc.) has grown inline in the component across three
+     sessions, unlike `url-state.ts`'s established pure-module pattern —
+     **deferred, not fixed**: behavior is correct and already covered by
+     `ScenarioForm.test.tsx`, so this is a structural cleanup, not a bug;
+     extracting a `deriveScenarioFormState()` pure function is the
+     suggested shape if/when this file grows further. Scope this properly
+     next time it's touched rather than folding an unrequested refactor
+     into a review pass.
+  - Judgment call, not a defect: `ScenarioForm.tsx`'s `PROVIDER_LABELS` and
+    `ScenarioDisclosuresPanel.tsx`'s `PROVIDER_BADGE_TEXT` are two
+    independently-typed label maps keyed to two genuinely different
+    backend enums (`ContributionProviderChoice` vs. `ProviderType`) — not
+    a bug, just non-obvious. Added a one-line comment on `PROVIDER_LABELS`
+    naming this so a future maintainer doesn't try to unify them.
+- **`/security-review` skill** — scanned everything not yet on
+  `origin/main` (5 local commits) plus the working-tree diff. **No findings
+  at confidence ≥ 7.** CORS is a correct allowlist (env-configured origins,
+  no wildcard, credentials never enabled, explicit GET/POST + Content-Type
+  only); no injection sinks (`eval`, `subprocess`, `dangerouslySetInnerHTML`)
+  anywhere in the new surface; no path traversal (lookups are in-memory
+  dict/set operations, no filesystem paths built from request input); no
+  hardcoded secrets; no stack-trace/debug leakage (`DomainError` mapping
+  returns only a stable code/message, no `debug=True`); the frontend
+  validates every response against the generated OpenAPI schema before use.
+- **`/impeccable`** — still not run. `init` is interactive and needs the
+  user to run it directly; only the deterministic detector (auto-runs on
+  every edit via the PostToolUse hook) has checked this session's edits, no
+  design-quality issues flagged. `critique`/`audit`/`polish` remain pending
+  the user's own session.
+- **`/review`** and **`/code-review`** — still not usable: no GitHub PR
+  exists for `/review` (which is PR-scoped by design), and `code-review`
+  still isn't in this session's available-skills listing, same as every
+  prior session.
+
+All three fixes verified: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+(97 tests) and `uv run ruff check . && uv run mypy && uv run pytest -q`
+(98 tests) all clean after the changes.
+
+**Acceptance:** three of four reviews run (the fourth needs the user's
+interactive `/impeccable init`); findings fixed or explicitly recorded as
+deferrals — none silently dropped.

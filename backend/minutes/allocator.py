@@ -75,13 +75,13 @@ def allocate_minutes(
     positive_weights = {pid: w for pid, w in player_weights.items() if w > 0}
     dropped_zero = sorted(set(player_weights) - set(positive_weights))
     if dropped_zero:
-        repairs.append(f"excluded (non-positive weight): {dropped_zero}")
+        repairs.append(f"excluded (non-positive weight): {', '.join(dropped_zero)}")
 
     ranked = sorted(positive_weights.items(), key=lambda item: (-item[1], item[0]))
     active = dict(ranked[: config.maximum_rotation_size])
     excluded_by_size = [pid for pid, _ in ranked[config.maximum_rotation_size :]]
     if excluded_by_size:
-        repairs.append(f"excluded (rotation size limit): {excluded_by_size}")
+        repairs.append(f"excluded (rotation size limit): {', '.join(excluded_by_size)}")
 
     if not active:
         raise InvalidRotationError("No players with positive weight are available for allocation")
@@ -199,7 +199,7 @@ def _cap_excess(
         raise InvalidRotationError("Minutes capping did not converge within the iteration limit")
 
     if capped:
-        repairs.append(f"capped at {max_minutes} and redistributed: {sorted(capped)}")
+        repairs.append(f"capped at {max_minutes} and redistributed: {', '.join(sorted(capped))}")
     return {**capped, **remaining}
 
 
@@ -209,7 +209,7 @@ def _drop_below_minimum(
     below = [pid for pid, m in minutes.items() if m < minimum_minutes - _FLOAT_TOLERANCE]
     if not below:
         return dict(minutes)
-    repairs.append(f"dropped (below minimum {minimum_minutes}): {sorted(below)}")
+    repairs.append(f"dropped (below minimum {minimum_minutes}): {', '.join(sorted(below))}")
     return {pid: m for pid, m in minutes.items() if pid not in below}
 
 
