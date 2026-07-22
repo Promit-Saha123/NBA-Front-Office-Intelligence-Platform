@@ -4,8 +4,10 @@ version = "0.1.0"
 description = "NBA Front Office Intelligence Platform — player projections and roster scenarios"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "fastapi>=0.139.2",
     "pandas>=2.2",
     "pyarrow>=16",
+    "uvicorn[standard]>=0.51.0",
 ]
 
 [dependency-groups]
@@ -14,6 +16,7 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "pandas-stubs>=2.2",
+    "httpx2>=2.7.0",
 ]
 
 [build-system]

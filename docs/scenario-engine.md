@@ -154,16 +154,29 @@ Load baseline roster
 
 ## 6. Scenario Request Contract
 
-Initial request:
+Implemented (`POST /scenarios`, `backend/api/schemas.py:ScenarioRequest`):
 
 ```json
 {
-  "team_id": 1610612747,
+  "team_id": "GSW",
   "season": "2014-15",
-  "player_added_id": 12345,
-  "player_removed_id": 67890
+  "player_out_id": "barbole01",
+  "player_in_id": "acyqu01",
+  "contribution_provider": "historical_benchmark"
 }
 ```
+
+`team_id` and player IDs are the internal string identifiers used throughout
+`backend/domain/models.py` (RAPTOR's own IDs in the free MVP), not numeric
+NBA.com IDs — this document's original example used illustrative numeric IDs
+that predate the identifier scheme actually implemented (see the `data-rules`
+skill: never use names as primary identifiers).
+
+`contribution_provider` is `"historical_benchmark"` or `"synthetic"`
+(`backend/api/schemas.py:ContributionProviderChoice`), matching
+`backend/providers/`'s two implementations. It is required on every request —
+the domain layer never falls back from one provider to another
+(`backend/providers/base.py`), so the API does not invent a default either.
 
 Optional future fields:
 
@@ -179,39 +192,63 @@ Custom minutes are not required for the first automatic scenario implementation.
 
 ## 7. Scenario Response Contract
 
-A scenario response should include:
+Implemented (`backend/api/schemas.py:ScenarioResponse`), reconciled with what
+`RosterScenarioService.build_scenario()` actually returns
+(`backend/domain/models.py:RosterScenarioResult`). The design below in this
+document originally sketched a `baseline`/`scenario`/`changes` win-projection
+shape and a single `contribution_provider` version string; neither exists yet
+because no win-conversion methodology is approved (decision 0007 §10) and
+provider identity needed to be three separate fields
+(`provider_type`/`provider_version`/`data_version`) rather than one, so a UI
+can distinguish "which provider" from "which version of that provider's data"
+without parsing a compound string:
 
 ```json
 {
-  "team_id": 1610612747,
+  "team_id": "GSW",
   "season": "2014-15",
-  "baseline": {
-    "projected_wins": 35.2,
-    "projected_team_impact": -1.8
-  },
-  "scenario": {
-    "projected_wins": 38.6,
-    "projected_team_impact": -0.4
-  },
-  "changes": {
-    "projected_wins": 3.4,
-    "projected_team_impact": 1.4
-  },
-  "rotation": [],
-  "profile_changes": {},
-  "explanation_factors": [],
-  "contribution_provider": "historical-raptor-benchmark-v1",
-  "contribution_epistemic_type": "historical_benchmark",
-  "model_version": null,
+  "player_out_id": "barbole01",
+  "player_in_id": "acyqu01",
+  "baseline_rotation": [{"player_id": "curryst01", "minutes": 34.5}],
+  "scenario_rotation": [{"player_id": "acyqu01", "minutes": 6.6}],
+  "baseline_contribution": -1.83,
+  "scenario_contribution": -1.87,
+  "contribution_change": -0.04,
+  "provider_type": "historical_raptor_benchmark",
+  "provider_version": "historical-raptor-benchmark-v1",
   "data_version": "fivethirtyeight-nba-raptor-2022-11-29",
+  "contribution_epistemic_type": "historical_benchmark",
   "minutes_method": "heuristic-v1",
   "minutes_assumptions": {
     "editable": false,
-    "validated": false
+    "validated": false,
+    "total_minutes": 240.0,
+    "maximum_player_minutes": 40.0
   },
-  "win_conversion_version": "net-rating-to-wins-v1"
+  "allocation_repairs": [],
+  "explanation_factors": [
+    {
+      "metric": "team_contribution",
+      "baseline_value": -1.83,
+      "scenario_value": -1.87,
+      "change": -0.04,
+      "direction": "decrease",
+      "importance": 1.0
+    }
+  ],
+  "historical_only": true,
+  "attribution": ["FiveThirtyEight NBA RAPTOR data, CC BY 4.0"],
+  "model_version": null
 }
 ```
+
+There is no `projected_wins`, `projected_team_impact`, `profile_changes`, or
+`win_conversion_version` field — none of that methodology is approved yet
+(decision 0007 §10, §22); see `docs/architecture/README.md`'s "Scenario
+service" section. `model_version` is always `null` in the free MVP (no
+trained model ships — decision 0007). `provider_type` and
+`contribution_epistemic_type` use the exact enum values from
+`backend/domain/models.py` (`ProviderType`, `EpistemicType`).
 
 The response should avoid unsupported precision.
 
@@ -869,6 +906,31 @@ Expected errors include:
 Return consistent machine-readable codes and clear user-facing messages.
 
 Do not expose internal stack traces.
+
+Implemented mapping (`backend/api/errors.py`, reusing each error's existing
+`backend/domain/errors.py` `.code`, never inventing a new string):
+
+| Domain error | HTTP status | code |
+|---|---|---|
+| `UnsupportedSeasonError` | 422 | `UNSUPPORTED_SEASON` |
+| `TeamNotFoundError` | 404 | `TEAM_NOT_FOUND` |
+| `PlayerNotFoundError` | 404 | `PLAYER_NOT_FOUND` |
+| `PlayerNotOnRosterError` | 422 | `PLAYER_NOT_ON_ROSTER` |
+| `PlayerAlreadyOnRosterError` | 409 | `PLAYER_ALREADY_ON_ROSTER` |
+| `SamePlayerSwapError` | 422 | `SAME_PLAYER_SWAP` |
+| `MissingContributionError` | 422 | `MISSING_CONTRIBUTION` |
+| `InvalidRotationError` | 422 | `INVALID_ROTATION` |
+| any other `DomainError` (e.g. `InvalidRosterError`, the fixture-loading errors) | 500 | the error's own `.code` |
+
+A `DomainError` is caught by a single FastAPI exception handler
+(`backend/api/app.py:domain_error_handler`), so the route itself never
+contains error-handling logic. The response body is always
+`{"code": ..., "message": ...}` — a raw pandas/Python exception or stack
+trace is never returned. Malformed requests (wrong field type, missing
+field, invalid `contribution_provider` enum value) are rejected by FastAPI's
+own request validation before reaching the route, returning its standard
+`422` body shape (`{"detail": [...]}`) — a different shape from the domain
+error body above, since it is not a domain error.
 
 ---
 

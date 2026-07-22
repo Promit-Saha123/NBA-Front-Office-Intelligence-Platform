@@ -8,12 +8,13 @@ diagrams, and data-flow notes as they are designed.
 
 The first free-MVP slice ([decision 0007](../decisions/0007-fully-free-historical-prototype.md)):
 canonical domain models, a fixture loader, the contribution-provider
-abstraction, a heuristic minutes allocator, and a same-season one-player-swap
-scenario service. No FastAPI routes, database, or trained model exist yet —
-see [project-specification.md §7](../project-specification.md) for what comes
-next. Full behavior is documented in each module's docstring; this section
-maps concepts to the actual code and records anything not obvious from the
-specs alone.
+abstraction, a heuristic minutes allocator, a same-season one-player-swap
+scenario service, and one thin FastAPI route over that service. No database
+or trained model exist yet — see
+[project-specification.md §7](../project-specification.md) for what comes
+next (minimal Next.js Roster Lab UI). Full behavior is documented in each
+module's docstring; this section maps concepts to the actual code and records
+anything not obvious from the specs alone.
 
 ```text
 backend/
@@ -28,7 +29,52 @@ backend/
   providers/synthetic.py          SyntheticContributionProvider
   minutes/allocator.py  MinutesAllocationConfig, allocate_minutes()
   scenario/service.py   RosterScenarioService
+  api/app.py             FastAPI app: POST /scenarios + 3 read-only lookup
+                          GET routes, startup-loaded season data, CORS,
+                          DomainError -> HTTP status/code mapping
+  api/schemas.py          Pydantic request/response schemas (distinct from
+                           the domain dataclasses above)
+  api/errors.py           DomainError subclass -> HTTP status table
+  api/lookups.py           Pure season/team/player projections over
+                           HistoricalSeasonData for the 3 GET routes — no
+                           business logic, no FastAPI/Pydantic dependency
+  api/openapi_export.py    Deterministic OpenAPI schema export (no server)
 ```
+
+### API layer (`backend/api/`)
+
+`POST /scenarios` — request/response contract and the full error-code
+mapping table are in
+[scenario-engine.md §6-7 and §31](../scenario-engine.md). The 2014-15
+`HistoricalSeasonData` is loaded once via a FastAPI `lifespan` context
+manager (scenario-engine.md §29: "model artifact loaded once at application
+startup"), and both `ContributionProvider` implementations
+(`HistoricalRaptorBenchmarkProvider`, `SyntheticContributionProvider`) are
+constructed once at startup and reused for every request — provider
+selection is an explicit required request field
+(`ContributionProviderChoice`), never a fallback. A single
+`@app.exception_handler(DomainError)` maps every typed domain error to a
+status code and returns `{"code", "message"}`, so `create_scenario()` itself
+has no error-handling branches — it only builds the domain request, calls
+`RosterScenarioService.build_scenario()`, and maps the result dataclass to
+`ScenarioResponse`.
+
+Three read-only lookup routes support the frontend's selectors (UI-002;
+decision 0008's "UI-002 Implementation Notes"): `GET /seasons/{season}/teams`,
+`GET /seasons/{season}/teams/{team_id}/roster`,
+`GET /seasons/{season}/players` — thin projections over the same
+`HistoricalSeasonData` (now also stored on `AppState`), implemented in
+`backend/api/lookups.py`. These are not scenario-domain logic; they reuse
+`TeamNotFoundError`/`UnsupportedSeasonError` from `backend/domain/errors.py`
+for consistent 404/422 behavior through the same exception handler.
+
+CORS (`CORSMiddleware`, origins from `FRONTEND_ORIGINS`, methods `GET` and
+`POST`) is configured because the browser calls this API directly — no
+Next.js proxy (decision 0008 §6). Run locally with
+`uv run uvicorn backend.api.app:app --reload`. Tests:
+`tests/test_api_scenarios.py` and `tests/test_api_lookups.py`, using
+FastAPI's `TestClient` (backed by `httpx2`) against the pinned local
+2014-15 snapshot — no live server, no network access.
 
 ### Fixture loader
 
@@ -133,13 +179,18 @@ always `None` (the free MVP ships no trained model).
 * No positional-viability constraint (no position data in the pinned source).
 * No win conversion — scenario results report contribution change only.
 * nba-elo is pinned and audited but not yet wired into any domain model.
+* No database, no authentication, no caching, no persistence — every request
+  recomputes the scenario from the in-memory season data loaded at startup.
 
 ### Running the tests
 
 ```text
 uv run pytest tests/test_historical_loader.py tests/test_contribution_providers.py \
-  tests/test_minutes_allocator.py tests/test_scenario_service.py -v
+  tests/test_minutes_allocator.py tests/test_scenario_service.py \
+  tests/test_api_scenarios.py tests/test_api_lookups.py -v
 ```
 
 Or the full suite: `uv run pytest`. All tests are offline (pinned local CSVs
-or fully synthetic fixtures); none call a live endpoint.
+or fully synthetic fixtures); `tests/test_api_scenarios.py` and
+`tests/test_api_lookups.py` exercise the real FastAPI app via `TestClient`,
+not a live server.
