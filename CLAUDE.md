@@ -301,18 +301,33 @@ Toolchain (decision 0002): Python 3.12 + uv, Node.js 22 LTS + pnpm, PostgreSQL 1
 Docker Compose, Ruff, mypy, Pytest, Next.js with TypeScript.
 
 ```text
-Package managers: uv (Python), pnpm (Node — frontend not yet scaffolded)
+Package managers: uv (Python), pnpm (Node — pnpm@11.15.1 pinned in frontend/package.json)
 
 Start database: docker compose up -d db
 
-Frontend development: not yet scaffolded (Next.js + TypeScript via pnpm)
-Frontend lint: not yet scaffolded
-Frontend type-check: not yet scaffolded
-Frontend tests: not yet scaffolded
+Frontend development: cd frontend && pnpm dev (reads frontend/.env.local's
+  NEXT_PUBLIC_API_URL; the browser calls the FastAPI backend directly, no
+  proxy — see docs/decisions/0008-roster-lab-frontend-architecture.md §6)
+Frontend build: cd frontend && pnpm build
+Frontend lint: cd frontend && pnpm lint
+Frontend type-check: cd frontend && pnpm typecheck
+Frontend tests (hermetic, no uv/Python required): cd frontend && pnpm test
+Frontend tests including codegen freshness (requires uv/Python):
+  cd frontend && pnpm test:all   (or: pnpm test:codegen for just that file)
+Frontend API-contract regeneration (requires uv/Python; see decision 0008 §1):
+  cd frontend && pnpm run generate:api
+Frontend API-contract staleness check (CI-suitable, never writes):
+  cd frontend && pnpm run check:api-fresh
 
 Backend domain/service layer: backend/ (domain models, fixture loader,
   contribution providers, minutes allocator, scenario service — see
-  docs/architecture/README.md); no FastAPI routes yet
+  docs/architecture/README.md)
+Backend API: uv run uvicorn backend.api.app:app --reload (POST /scenarios;
+  see docs/scenario-engine.md §6-7, §31). Requires FRONTEND_ORIGINS (see
+  .env.example) to match the frontend's origin, or the browser's CORS
+  preflight fails before any request reaches the route.
+Backend OpenAPI schema export (no running server needed):
+  uv run python scripts/export_openapi_schema.py [--check]
 Python lint: uv run ruff check .
 Python type-check: uv run mypy
 Python tests: uv run pytest
@@ -328,8 +343,11 @@ Model training: not yet configured
 Model evaluation: not yet configured
 Projection generation: not yet configured
 
-Full quality check (stops on first failure; run in a POSIX shell such as Git Bash):
+Full backend quality check (stops on first failure; run in a POSIX shell such as Git Bash):
   uv run ruff check . && uv run mypy && uv run pytest
+
+Full frontend quality check (from frontend/):
+  pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
 
 Sections marked "not yet scaffolded/configured" must be filled in when that
