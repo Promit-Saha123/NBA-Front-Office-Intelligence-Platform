@@ -104,6 +104,7 @@ def create_scenario(payload: ScenarioRequest, request: Request) -> ScenarioRespo
         season_label=payload.season,
         player_out_id=payload.player_out_id,
         player_in_id=payload.player_in_id,
+        manual_minutes=payload.manual_minutes,
     )
     result = state.service.build_scenario(domain_request, provider)
     return _to_response(result)

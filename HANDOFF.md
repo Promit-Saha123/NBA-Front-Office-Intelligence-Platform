@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-23
 
 ---
 
@@ -27,7 +27,15 @@ pass) is now done** (2026-07-22) — three of four reviews run
 fixed; `/impeccable` still needs the user's own interactive `init`) — see
 `HANDOFF-roster-lab-issues.md`'s UI-005 entry for the full findings/fixes
 list and "Portfolio Roadmap" below for how this relates to eventual public
-deployment. No database, no trained model exist.
+deployment. **Step 6 (editable minutes and sensitivity analysis, decision
+0009) is now also done** (2026-07-23): `POST /scenarios` accepts an optional
+`manual_minutes` field (a complete, strictly-validated override of the
+post-swap scenario rotation — baseline stays read-only), and the frontend's
+new `EditableScenarioMinutes.tsx` lets a user edit the rotation table,
+recalculate, reset, and see the default and edited results side by side.
+Backend: 121 tests (up from 98), ruff/mypy clean. Frontend: 103 tests (up
+from 97), typecheck/lint/build clean. See decision 0009 for the full design
+rationale. No database, no trained model exist.
 
 ## Portfolio Roadmap
 
@@ -140,8 +148,11 @@ same as any other visible/shared action.
    ADR**; read its "UI-001 Implementation Clarifications," "UI-002
    Implementation Notes," and "UI-003 Implementation Notes" sections (and
    their "Review findings applied" subsections) for exact file-level detail
-4. `docs/architecture/README.md` — maps the `backend/` code to the specs
-5. This file, for "what's next"
+4. `docs/decisions/0009-editable-scenario-minutes.md` — the editable-minutes
+   design (step 6): `manual_minutes` request field, complete-assignment
+   validation, `INVALID_MANUAL_MINUTES`, `scenario_source` — **implemented**
+5. `docs/architecture/README.md` — maps the `backend/` code to the specs
+6. This file, for "what's next"
 
 Skip 0001–0006 unless you need the historical reasoning for *why* — they're
 preserved as history, not the current plan.
@@ -159,6 +170,8 @@ preserved as history, not the current plan.
 | [0005](docs/decisions/0005-historical-only-product-scope.md) | Product is historical-only, no current data | Accepted, current |
 | [0006](docs/decisions/0006-historical-pce-data-source.md) | Historical box-score source for PCE | Proposed, deferred by 0007 |
 | [0007](docs/decisions/0007-fully-free-historical-prototype.md) | **Fully free**: CC BY 4.0 data + synthetic only, PCE not a blocker | **Accepted, current plan** |
+| [0008](docs/decisions/0008-roster-lab-frontend-architecture.md) | Next.js Roster Lab frontend architecture (client component, generated+validated API types, URL-backed state) | Accepted, current |
+| [0009](docs/decisions/0009-editable-scenario-minutes.md) | Editable scenario minutes: full-rotation `manual_minutes` override, strictly validated, baseline read-only | **Accepted, current** |
 
 **The short version:** we wanted PCE (an internal, learned player-impact metric) but
 found no legally-usable free historical box-score source for it. Rather than pay or
@@ -188,9 +201,14 @@ provider.
   `SyntheticContributionProvider` (labeled `synthetic_estimate`, deterministic via
   SHA-256, never auto-selected)
 - `backend/minutes/allocator.py` — heuristic 240-minute allocator with cap/drop
-  repair logic (see "gotcha" below)
+  repair logic (see "gotcha" below), plus (step 6, decision 0009)
+  `apply_manual_minutes()` — a separate, strict (no repair, no rebalance)
+  validator for a user-supplied complete scenario-rotation minutes map
 - `backend/scenario/service.py` — one-player, same-season swap; no win conversion,
-  no PCE — `model_version` is always `None`, no `projected_wins` field exists
+  no PCE — `model_version` is always `None`, no `projected_wins` field exists.
+  Accepts an optional `manual_minutes` request field (step 6): when present,
+  the scenario side is built from `apply_manual_minutes()` instead of the
+  heuristic allocator; baseline is always heuristic, never overridable.
 - `backend/api/` — `POST /scenarios` (`app.py`), Pydantic request/response
   schemas distinct from the domain dataclasses (`schemas.py`), a
   `DomainError` -> HTTP status/code mapping table (`errors.py`), plus 3
@@ -460,7 +478,15 @@ Ruff and mypy both clean.
   worked example and the actual fix (a closure-local `settled` flag +
   clearing state from the effect's cleanup function). If you add another
   data-fetching hook, read that comment first rather than rediscovering
-  this the hard way.
+  this the hard way. A second, simpler `set-state-in-effect` case showed up
+  in `EditableScenarioMinutes.tsx` (step 6, decision 0009): resetting
+  component-local state when a *prop* (not a fetch) changes. No async
+  callback exists there to move the `setState` into, so the fix was
+  different — React's own "adjusting state during render" pattern (compare
+  a stored identity key against the current one and call `setState`
+  directly in the render body, no `useEffect` at all). Prefer that pattern
+  over `useEffect` for this shape of problem (reset-on-prop-change with no
+  async step involved).
 - **A hand-rolled "loading" flag keyed only by request *key* equality is
   wrong for a revisited key** — the frontend-architect review caught this
   as a real, non-hypothetical bug in `use-roster-lookups.ts` (select team
@@ -496,44 +522,66 @@ Roadmap" above, which is the current, binding answer.
 
 ## Exact next task
 
+**Step 6 (editable minutes and sensitivity analysis) is done** (2026-07-23,
+decision 0009 — see that file for the full design rationale). Built via an
+`EnterPlanMode` plan approved by the user before implementation:
+`POST /scenarios` gained an optional `manual_minutes: dict[str, float]`
+request field — a *complete* assignment over the post-swap scenario roster
+(baseline stays permanently read-only), validated by a new pure
+`apply_manual_minutes()` in `backend/minutes/allocator.py` (exact key-set
+match, no negatives, no value over the 40-minute cap, sum must equal
+exactly 240 within the existing float tolerance — no partial maps, no
+silent rebalance, per scenario-engine.md §15). A new
+`InvalidManualMinutesError`/`INVALID_MANUAL_MINUTES` (422) is deliberately
+distinct from `InvalidRotationError` so the frontend can route it to inline
+table validation instead of a generic error banner. `minutes_assumptions`
+gained `"scenario_source": "heuristic" | "manual"`; `"editable"` flipped
+permanently to `true` (a capability flag, not a per-response fact). New
+frontend component `EditableScenarioMinutes.tsx` (composed into
+`ScenarioSuccessPreview.tsx`) lets a user edit the scenario rotation table,
+gates Recalculate on an exact-240 total (no auto-correct), Resets without a
+new request, and shows the default and edited results side by side. Backend
+121 tests (was 98), frontend 103 tests (was 97) — both quality gates clean.
+
+One non-obvious fix needed during this slice, worth remembering: reseeding
+the editable draft when a new default result arrives was originally written
+as a `useEffect` that calls `setDraft`/`setEdited` synchronously in its
+body — this project's `react-hooks/set-state-in-effect` eslint rule (see
+the gotcha below) rejects that. The fix was React's own recommended
+"adjusting state during render" pattern (compare a stored `scenarioKey`
+against the current one and call `setState` directly in the render body,
+no `useEffect` at all) — see `EditableScenarioMinutes.tsx`'s own comment.
+If a future component needs to reset local state when a prop changes, use
+this pattern before reaching for `useEffect`.
+
 **UI-005 is done** (2026-07-22, see `HANDOFF-roster-lab-issues.md`'s UI-005
-entry for the full account). `architecture-review`, `frontend-architect`,
-and `/security-review` all ran clean or had their findings fixed; four
-small frontend fixes landed (a stray `"use client"`, a dead CSS-class
-reference, a success/loading visual-parity gap, a one-line clarifying
-comment). One item was deliberately **deferred, not fixed**:
-`ScenarioForm.tsx`'s ~60 lines of inline validation/derivation logic should
-eventually move to a pure module (`deriveScenarioFormState()`), matching
-the `url-state.ts` pattern — behavior is correct and tested today, so this
-is a structural cleanup to do deliberately next time that file is touched,
+entry for the full account) — carried over from the prior session, still
+current. One item from that pass remains deliberately **deferred, not
+fixed**: `ScenarioForm.tsx`'s ~60 lines of inline validation/derivation
+logic should eventually move to a pure module (`deriveScenarioFormState()`),
+matching the `url-state.ts` pattern — behavior is correct and tested today,
 not urgent on its own. `/impeccable init` is still pending — it's
 interactive and only the user can run it; ask them to, then follow with
 `critique`/`audit`/`polish`. `/review`/`/code-review` are still not usable
 (no PR; `code-review` still not in the skill listing).
 
-With UI-001 through UI-005 complete, the smallest credible Roster Lab loop
-(CLAUDE.md's "Development Priority" list, steps 1-5) is done end to end.
-**The next item in that list is step 6: editable minutes and sensitivity
-analysis** — letting a user adjust the heuristic minutes allocation rather
-than only accepting the default, per `docs/scenario-engine.md`. Read that
-spec's relevant section plus the `scenario-rules` skill before starting
-(240-minute-total and determinism constraints apply to any edit path, not
-just the default allocator). This is a real feature addition (new backend
-input, new frontend controls), not a review pass — treat it with the same
-rigor as UI-001/002/003 (architecture-review + frontend-architect on the
-frontend half, tests on both halves) rather than rushing it.
+With steps 1-6 of CLAUDE.md's "Development Priority" list complete, **the
+next item is step 7: team-profile interpretation** (descriptive
+interpretation of a team's calculated scenario differences — see CLAUDE.md's
+"Product Claims" for the label distinctions to preserve: model prediction /
+heuristic assumption / deterministic calculation / descriptive
+interpretation). Read `docs/project-specification.md` and whatever section
+of `docs/scenario-engine.md` covers team-profile output before starting;
+none of this is designed yet, so expect another `EnterPlanMode` pass before
+writing code, same as step 6.
 
 **The Council's open question is resolved — see "Portfolio Roadmap" above:
 not deploying for now.** Don't re-raise it or start deployment/hosting work
-on your own initiative; stay focused on local development (step 6 and
+on your own initiative; stay focused on local development (step 7 and
 beyond) until the user brings deployment up again.
 
-**This session's changes remain uncommitted**, same standing rule as
-always (don't commit without asking first) — the UI-005 fixes are layered
-on top of the same 11 already-uncommitted files from the prior session,
-still no new files beyond what's already listed under "This session's
-changed/new files" above (that note is now one session stale — re-run
-`git status` before trusting either list).
+**Run `git status` before trusting any file list in this document** — it
+reflects state as of 2026-07-23 but may have drifted.
 
 **Known follow-up, not yet scheduled:** fix `commitSelection()`'s
 `router.push()` never actually creating a back-navigable history entry
@@ -567,21 +615,25 @@ uv run mypy
 uv run pytest -q
 ```
 
-All three should pass clean (**98 tests**, up from 90 — `tests/test_api_cors.py`
-added this session). If they don't, something changed since this file was
-last updated — trust the code over this document.
+All three should pass clean (**121 tests**, up from 98 — step 6's
+`apply_manual_minutes`/`manual_minutes` tests added across
+`tests/test_minutes_allocator.py`, `tests/test_scenario_service.py`, and
+`tests/test_api_scenarios.py`). If they don't, something changed since this
+file was last updated — trust the code over this document.
 
 ```bash
 cd frontend
 pnpm typecheck
 pnpm lint
-pnpm test        # hermetic, 97 tests, no uv/Python required
+pnpm test        # hermetic, 103 tests, no uv/Python required
 pnpm build
 ```
 
-All four should pass clean. `pnpm test:codegen` (3 more tests, 100 total)
+All four should pass clean. `pnpm test:codegen` (3 more tests, 106 total)
 additionally requires `uv`/Python on PATH — see the pnpm-on-PATH gotcha
-above if `pnpm` itself isn't found.
+above if `pnpm` itself isn't found. `pnpm run check:api-fresh` should also
+report the generated API contract as up to date (it's regenerated as part
+of step 6's `manual_minutes` field — see decision 0009).
 
 **Real browser smoke test done this session** (superseding UI-003's
 curl-only verification): `uv run uvicorn backend.api.app:app --port 8000`

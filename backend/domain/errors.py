@@ -54,6 +54,10 @@ class InvalidRotationError(DomainError):
     code = "INVALID_ROTATION"
 
 
+class InvalidManualMinutesError(DomainError):
+    code = "INVALID_MANUAL_MINUTES"
+
+
 class MissingSourceFileError(DomainError):
     code = "MISSING_SOURCE_FILE"
 

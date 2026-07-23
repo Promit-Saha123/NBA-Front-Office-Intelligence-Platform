@@ -33,6 +33,9 @@ class ScenarioRequest(BaseModel):
     player_out_id: str
     player_in_id: str
     contribution_provider: ContributionProviderChoice
+    # Complete player_id -> minutes override for the scenario (never baseline)
+    # rotation. Omitted (the default) keeps today's heuristic-only behavior.
+    manual_minutes: dict[str, float] | None = None
 
 
 class RotationEntryResponse(BaseModel):
@@ -64,7 +67,7 @@ class ScenarioResponse(BaseModel):
     data_version: str
     contribution_epistemic_type: EpistemicType
     minutes_method: str
-    minutes_assumptions: dict[str, float | bool]
+    minutes_assumptions: dict[str, float | bool | str]
     allocation_repairs: list[str]
     explanation_factors: list[ExplanationFactorResponse]
     historical_only: bool

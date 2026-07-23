@@ -144,6 +144,10 @@ export interface components {
         /** ScenarioRequest */
         ScenarioRequest: {
             contribution_provider: components["schemas"]["ContributionProviderChoice"];
+            /** Manual Minutes */
+            manual_minutes?: {
+                [key: string]: number;
+            } | null;
             /** Player In Id */
             player_in_id: string;
             /** Player Out Id */
@@ -174,7 +178,7 @@ export interface components {
             historical_only: boolean;
             /** Minutes Assumptions */
             minutes_assumptions: {
-                [key: string]: number | boolean;
+                [key: string]: number | boolean | string;
             };
             /** Minutes Method */
             minutes_method: string;

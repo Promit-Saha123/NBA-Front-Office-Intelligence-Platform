@@ -541,7 +541,9 @@ describe("results and disclosures (UI-003)", () => {
   it("shows the rotation comparison with resolved player names and a 240-minute total on each side", async () => {
     await submitAndGetResults();
 
-    const table = screen.getByRole("table");
+    // Two tables exist now (the read-only comparison, and the editable-minutes
+    // table below it) — this checks the read-only one specifically.
+    const table = screen.getAllByRole("table")[0];
     expect(within(table).getByText("Stephen Curry")).toBeInTheDocument();
     expect(within(table).getByText("Leandro Barbosa")).toBeInTheDocument();
     expect(within(table).getByText("Quincy Acy")).toBeInTheDocument();
@@ -554,7 +556,7 @@ describe("results and disclosures (UI-003)", () => {
   it("labels the outgoing and incoming players as Removed/Added, not by color alone", async () => {
     await submitAndGetResults();
 
-    const table = screen.getByRole("table");
+    const table = screen.getAllByRole("table")[0];
     const barbosaRow = within(table).getByText("Leandro Barbosa").closest("tr")!;
     expect(within(barbosaRow).getByText("Removed")).toBeInTheDocument();
     const acyRow = within(table).getByText("Quincy Acy").closest("tr")!;
@@ -643,9 +645,37 @@ describe("results and disclosures (UI-003)", () => {
     await user.click(button);
     await waitFor(() => expect(screen.getByText(/completed successfully/i)).toBeInTheDocument());
 
-    const table = screen.getByRole("table");
+    const table = screen.getAllByRole("table")[0];
     expect(within(table).queryByText("Quincy Acy")).not.toBeInTheDocument();
     expect(screen.getByText(/excluded \(rotation size limit\): \['acyqu01'\]/)).toBeInTheDocument();
+  });
+
+  it("shows the editable-minutes table after a successful submit, seeded with the submitted provider", async () => {
+    await submitAndGetResults();
+
+    expect(screen.getByRole("heading", { name: /edit scenario minutes/i })).toBeInTheDocument();
+    // Two tables now exist: the read-only comparison above, and the editable one below it.
+    expect(screen.getAllByRole("table")).toHaveLength(2);
+
+    const recalculate = screen.getByRole("button", { name: /recalculate/i });
+    await waitFor(() => expect(recalculate).not.toBeDisabled());
+    const user = userEvent.setup();
+    await user.click(recalculate);
+
+    // The second call (the edit's own recalculate) must reuse the exact request
+    // fields the original submit used, notably the submitted provider — not a
+    // value re-read from `selection`, which could have drifted since submission.
+    await waitFor(() => expect(scenarioMocks.postScenario).toHaveBeenCalledTimes(2));
+    expect(scenarioMocks.postScenario).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        team_id: "GSW",
+        season: "2014-15",
+        player_out_id: "barbole01",
+        player_in_id: "acyqu01",
+        contribution_provider: "historical_benchmark",
+        manual_minutes: expect.any(Object),
+      }),
+    );
   });
 });
 

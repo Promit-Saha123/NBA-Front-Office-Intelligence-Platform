@@ -6,6 +6,7 @@ import dataclasses
 import pytest
 
 from backend.domain.errors import (
+    InvalidManualMinutesError,
     MissingContributionError,
     PlayerAlreadyOnRosterError,
     PlayerNotFoundError,
@@ -240,7 +241,7 @@ def test_same_aggregation_formula_for_baseline_and_scenario() -> None:
         team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
     )
     result = service.build_scenario(request, provider)
-    total_minutes = result.minutes_assumptions["total_minutes"]
+    total_minutes = float(result.minutes_assumptions["total_minutes"])
     recomputed_baseline = sum(
         values[e.player_id] * (e.minutes / total_minutes) for e in result.baseline_rotation
     )
@@ -279,9 +280,10 @@ def test_minutes_metadata_propagates() -> None:
     )
     result = service.build_scenario(request, provider)
     assert result.minutes_method == "heuristic-v1"
-    assert result.minutes_assumptions["editable"] is False
+    assert result.minutes_assumptions["editable"] is True
     assert result.minutes_assumptions["validated"] is False
     assert result.minutes_assumptions["total_minutes"] == 240.0
+    assert result.minutes_assumptions["scenario_source"] == "heuristic"
 
 
 def test_removed_player_receives_zero_minutes() -> None:
@@ -350,6 +352,116 @@ def test_raptor_specific_fields_do_not_leak_into_response() -> None:
 
 
 # --- Integration test against the real pinned 2014-15 snapshot ---
+
+
+def test_manual_minutes_override_produces_expected_scenario_rotation() -> None:
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    manual_minutes = {"a1": 100.0, "a2": 100.0, "b1": 40.0}
+    request = RosterScenarioRequest(
+        team_id="TMA",
+        season_label=SEASON_LABEL,
+        player_out_id="a3",
+        player_in_id="b1",
+        manual_minutes=manual_minutes,
+    )
+    result = service.build_scenario(request, provider)
+    minutes_by_id = {e.player_id: e.minutes for e in result.scenario_rotation}
+    assert minutes_by_id == {**manual_minutes, "a3": 0.0}
+
+
+def test_manual_minutes_leaves_baseline_rotation_unchanged() -> None:
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    request_without_override = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    request_with_override = RosterScenarioRequest(
+        team_id="TMA",
+        season_label=SEASON_LABEL,
+        player_out_id="a3",
+        player_in_id="b1",
+        manual_minutes={"a1": 100.0, "a2": 100.0, "b1": 40.0},
+    )
+    default_result = service.build_scenario(request_without_override, provider)
+    manual_result = service.build_scenario(request_with_override, provider)
+    assert manual_result.baseline_rotation == default_result.baseline_rotation
+
+
+def test_manual_minutes_with_outgoing_player_key_raises_invalid_manual_minutes_error() -> None:
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    request = RosterScenarioRequest(
+        team_id="TMA",
+        season_label=SEASON_LABEL,
+        player_out_id="a3",
+        player_in_id="b1",
+        # a3 (the outgoing player) is not part of the scenario roster; including
+        # it as a key is an "unexpected" key by apply_manual_minutes's rules.
+        manual_minutes={"a1": 100.0, "a2": 100.0, "a3": 0.0, "b1": 40.0},
+    )
+    with pytest.raises(InvalidManualMinutesError):
+        service.build_scenario(request, provider)
+
+
+def test_manual_minutes_sets_scenario_source_manual_in_minutes_assumptions() -> None:
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    request = RosterScenarioRequest(
+        team_id="TMA",
+        season_label=SEASON_LABEL,
+        player_out_id="a3",
+        player_in_id="b1",
+        manual_minutes={"a1": 100.0, "a2": 100.0, "b1": 40.0},
+    )
+    result = service.build_scenario(request, provider)
+    assert result.minutes_assumptions["scenario_source"] == "manual"
+    assert result.minutes_assumptions["editable"] is True
+
+
+def test_swap_validation_errors_take_precedence_over_invalid_manual_minutes() -> None:
+    # An unknown incoming player must still surface PlayerNotFoundError, never
+    # InvalidManualMinutesError -- manual_minutes validation only makes sense
+    # once the scenario roster (which depends on a valid swap) exists.
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    request = RosterScenarioRequest(
+        team_id="TMA",
+        season_label=SEASON_LABEL,
+        player_out_id="a3",
+        player_in_id="nobody",
+        manual_minutes={"a1": 100.0, "a2": 100.0, "nobody": 40.0},
+    )
+    with pytest.raises(PlayerNotFoundError):
+        service.build_scenario(request, provider)
+
+
+def test_manual_minutes_contribution_values_computed_from_override_minutes() -> None:
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    manual_minutes = {"a1": 100.0, "a2": 100.0, "b1": 40.0}
+    request = RosterScenarioRequest(
+        team_id="TMA",
+        season_label=SEASON_LABEL,
+        player_out_id="a3",
+        player_in_id="b1",
+        manual_minutes=manual_minutes,
+    )
+    result = service.build_scenario(request, provider)
+    expected = sum(values[pid] * (minutes / 240.0) for pid, minutes in manual_minutes.items())
+    assert result.scenario_contribution == pytest.approx(expected)
 
 
 def test_integration_swap_on_real_2014_15_snapshot() -> None:

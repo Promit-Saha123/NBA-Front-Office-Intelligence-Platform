@@ -147,6 +147,20 @@
           "contribution_provider": {
             "$ref": "#/components/schemas/ContributionProviderChoice"
           },
+          "manual_minutes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Minutes"
+          },
           "player_in_id": {
             "title": "Player In Id",
             "type": "string"
@@ -231,6 +245,9 @@
                 },
                 {
                   "type": "boolean"
+                },
+                {
+                  "type": "string"
                 }
               ]
             },

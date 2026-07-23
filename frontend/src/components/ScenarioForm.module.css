@@ -68,6 +68,28 @@
   color: var(--color-text-muted);
 }
 
+.editActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.secondaryButton {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.7rem 1.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .status {
   border-radius: var(--radius);
   padding: 0.75rem var(--space-2);
@@ -199,6 +221,16 @@
 
 .rowOutgoing {
   background: var(--color-accent-bg-tint);
+}
+
+.minutesInput {
+  font: inherit;
+  width: 5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .statusTag {

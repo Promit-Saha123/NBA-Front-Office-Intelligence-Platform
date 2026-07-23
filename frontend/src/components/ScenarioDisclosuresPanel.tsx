@@ -24,8 +24,9 @@ const PROVIDER_BADGE_TEXT: Record<ScenarioDisclosures["providerType"], string> =
   synthetic: "Synthetic contribution estimate — generated demo value, not derived from real player data.",
 };
 
-function formatAssumptionValue(value: number | boolean): string {
-  return typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+function formatAssumptionValue(value: number | boolean | string): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
 }
 
 export function ScenarioDisclosuresPanel({ disclosures, season }: ScenarioDisclosuresPanelProps) {

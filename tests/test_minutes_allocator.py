@@ -4,9 +4,13 @@ from collections.abc import Sequence
 
 import pytest
 
-from backend.domain.errors import InvalidRotationError
+from backend.domain.errors import InvalidManualMinutesError, InvalidRotationError
 from backend.domain.models import RotationEntry
-from backend.minutes.allocator import MinutesAllocationConfig, allocate_minutes
+from backend.minutes.allocator import (
+    MinutesAllocationConfig,
+    allocate_minutes,
+    apply_manual_minutes,
+)
 
 DEFAULT_CONFIG = MinutesAllocationConfig()
 
@@ -149,3 +153,85 @@ def test_below_minimum_players_are_dropped_and_redistributed() -> None:
     assert any("below minimum" in repair for repair in result.repairs)
     minutes_by_id = {entry.player_id: entry.minutes for entry in result.entries}
     assert minutes_by_id["a"] == pytest.approx(minutes_by_id["b"] * 20, rel=1e-3)
+
+
+# --- apply_manual_minutes: complete, strict validation, no repair ---
+
+# A 100-minute cap (like _THREE_PLAYER_CONFIG above) with 4 required players,
+# so a fully-capped pair (100 + 100) still leaves room for a benched (0) player
+# plus one more without any single value needing to exceed the cap.
+_MANUAL_CONFIG = MinutesAllocationConfig(max_player_minutes=100.0)
+_MANUAL_REQUIRED = frozenset({"p1", "p2", "p3", "p4"})
+_MANUAL_VALID = {"p1": 100.0, "p2": 100.0, "p3": 30.0, "p4": 10.0}
+
+
+def test_apply_manual_minutes_valid_complete_assignment_returns_matching_entries() -> None:
+    entries = apply_manual_minutes(_MANUAL_VALID, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+    minutes_by_id = {e.player_id: e.minutes for e in entries}
+    assert minutes_by_id == _MANUAL_VALID
+    assert _total_minutes(entries) == pytest.approx(240.0, abs=1e-9)
+
+
+def test_apply_manual_minutes_rejects_missing_key() -> None:
+    incomplete = {"p1": 100.0, "p2": 100.0, "p3": 40.0}
+    with pytest.raises(InvalidManualMinutesError):
+        apply_manual_minutes(incomplete, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+
+
+def test_apply_manual_minutes_rejects_unexpected_key() -> None:
+    extra = {**_MANUAL_VALID, "outgoing_player": 0.0}
+    with pytest.raises(InvalidManualMinutesError):
+        apply_manual_minutes(extra, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+
+
+def test_apply_manual_minutes_rejects_negative_value() -> None:
+    negative = {"p1": -5.0, "p2": 100.0, "p3": 100.0, "p4": 45.0}
+    with pytest.raises(InvalidManualMinutesError):
+        apply_manual_minutes(negative, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+
+
+def test_apply_manual_minutes_rejects_value_over_max_player_minutes() -> None:
+    # Only p1 exceeds the 100-minute cap; everyone else stays within it and
+    # the total still sums to 240, isolating the cap rule from the others.
+    over_cap = {"p1": 101.0, "p2": 100.0, "p3": 30.0, "p4": 9.0}
+    with pytest.raises(InvalidManualMinutesError):
+        apply_manual_minutes(over_cap, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+
+
+def test_apply_manual_minutes_rejects_sum_not_equal_total() -> None:
+    wrong_sum = {"p1": 100.0, "p2": 100.0, "p3": 20.0, "p4": 10.0}  # sums to 230
+    with pytest.raises(InvalidManualMinutesError):
+        apply_manual_minutes(wrong_sum, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+
+
+def test_apply_manual_minutes_accepts_sum_within_float_tolerance() -> None:
+    almost = {**_MANUAL_VALID, "p4": _MANUAL_VALID["p4"] + 1e-7}
+    entries = apply_manual_minutes(almost, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+    assert len(entries) == 4
+
+
+def test_apply_manual_minutes_rejects_sum_outside_float_tolerance() -> None:
+    barely_off = {**_MANUAL_VALID, "p4": _MANUAL_VALID["p4"] + 1e-5}
+    with pytest.raises(InvalidManualMinutesError):
+        apply_manual_minutes(barely_off, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+
+
+def test_apply_manual_minutes_allows_zero_minutes_for_benched_player() -> None:
+    benched = {"p1": 100.0, "p2": 100.0, "p3": 40.0, "p4": 0.0}
+    entries = apply_manual_minutes(benched, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+    minutes_by_id = {e.player_id: e.minutes for e in entries}
+    assert minutes_by_id["p4"] == 0.0
+
+
+def test_apply_manual_minutes_entries_include_every_required_player_even_at_zero() -> None:
+    benched = {"p1": 100.0, "p2": 100.0, "p3": 40.0, "p4": 0.0}
+    entries = apply_manual_minutes(benched, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+    assert {e.player_id for e in entries} == _MANUAL_REQUIRED
+
+
+def test_apply_manual_minutes_deterministic_output() -> None:
+    order_a = dict(_MANUAL_VALID)
+    order_b = {pid: _MANUAL_VALID[pid] for pid in ("p4", "p1", "p3", "p2")}
+    entries_a = apply_manual_minutes(order_a, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+    entries_b = apply_manual_minutes(order_b, _MANUAL_REQUIRED, _MANUAL_CONFIG)
+    assert entries_a == entries_b

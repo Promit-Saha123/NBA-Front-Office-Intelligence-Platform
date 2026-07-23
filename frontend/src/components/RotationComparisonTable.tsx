@@ -7,6 +7,13 @@ export interface RotationComparisonTableProps {
   incomingPlayerId: string;
   /** Resolves a player_id to a display name from lookup data already loaded by the form. */
   playerLabel: (playerId: string) => string;
+  /** When true, every scenario-column cell except the outgoing player's becomes an editable
+   *  number input reading from `scenarioDraft` instead of `row.scenarioMinutes` — the baseline
+   *  column is never editable (EditableScenarioMinutes.tsx owns why). Purely presentational:
+   *  this component holds no validation or sum-gating logic of its own. */
+  editableScenario?: boolean;
+  scenarioDraft?: Record<string, number>;
+  onScenarioMinutesChange?: (playerId: string, value: number) => void;
 }
 
 function formatMinutes(minutes: number | null): string {
@@ -25,9 +32,14 @@ export function RotationComparisonTable({
   outgoingPlayerId,
   incomingPlayerId,
   playerLabel,
+  editableScenario = false,
+  scenarioDraft,
+  onScenarioMinutesChange,
 }: RotationComparisonTableProps) {
   const baselineTotal = rows.reduce((sum, row) => sum + (row.baselineMinutes ?? 0), 0);
-  const scenarioTotal = rows.reduce((sum, row) => sum + (row.scenarioMinutes ?? 0), 0);
+  const scenarioTotal = editableScenario
+    ? Object.values(scenarioDraft ?? {}).reduce((sum, minutes) => sum + minutes, 0)
+    : rows.reduce((sum, row) => sum + (row.scenarioMinutes ?? 0), 0);
 
   return (
     <div>
@@ -66,7 +78,23 @@ export function RotationComparisonTable({
                     {isOutgoing ? "Removed" : isIncoming ? "Added" : ""}
                   </td>
                   <td>{formatMinutes(row.baselineMinutes)}</td>
-                  <td>{formatMinutes(row.scenarioMinutes)}</td>
+                  <td>
+                    {editableScenario && !isOutgoing ? (
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        className={styles.minutesInput}
+                        value={scenarioDraft?.[row.playerId] ?? 0}
+                        aria-label={`${playerLabel(row.playerId)} scenario minutes`}
+                        onChange={(event) =>
+                          onScenarioMinutesChange?.(row.playerId, Number(event.target.value))
+                        }
+                      />
+                    ) : (
+                      formatMinutes(row.scenarioMinutes)
+                    )}
+                  </td>
                 </tr>
               );
             })}

@@ -9,6 +9,7 @@ source-specific field names.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -145,6 +146,12 @@ class RosterScenarioRequest:
     season_label: str
     player_out_id: str
     player_in_id: str
+    # A complete player_id -> minutes assignment for the post-swap scenario
+    # roster (never the baseline, which is never editable). When present, it
+    # replaces the heuristic allocator for the scenario side entirely rather
+    # than being blended with it — see apply_manual_minutes in
+    # backend/minutes/allocator.py for the exact validation rules.
+    manual_minutes: Mapping[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -179,7 +186,7 @@ class RosterScenarioResult:
     data_version: str
     contribution_epistemic_type: EpistemicType
     minutes_method: str
-    minutes_assumptions: dict[str, float | bool]
+    minutes_assumptions: dict[str, float | bool | str]
     allocation_repairs: tuple[str, ...]
     explanation_factors: tuple[ScenarioExplanationFactor, ...]
     historical_only: bool

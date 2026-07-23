@@ -38,7 +38,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from backend.domain.errors import InvalidRotationError
+from backend.domain.errors import InvalidManualMinutesError, InvalidRotationError
 from backend.domain.models import MinutesAllocationResult, RotationEntry
 
 _FLOAT_TOLERANCE = 1e-6
@@ -124,6 +124,69 @@ def allocate_minutes(
         for pid in sorted(minutes, key=lambda pid: (-minutes[pid], pid))
     )
     return MinutesAllocationResult(entries=entries, repairs=tuple(repairs))
+
+
+def apply_manual_minutes(
+    manual_minutes: Mapping[str, float],
+    required_player_ids: frozenset[str],
+    config: MinutesAllocationConfig = DEFAULT_MINUTES_CONFIG,
+) -> tuple[RotationEntry, ...]:
+    """Validate and apply a user-supplied, complete scenario-rotation minutes map.
+
+    Unlike ``allocate_minutes``, this never repairs or rebalances — an invalid
+    map is rejected outright (scenario-engine.md §15: "must not silently
+    rebalance user-entered minutes"). ``manual_minutes`` must be a *complete*
+    assignment: its key set must exactly match ``required_player_ids`` (the
+    post-swap scenario roster, which by construction already excludes the
+    outgoing player — see RosterScenarioService.build_scenario). A missing or
+    unexpected key, a negative value, a value over ``config.max_player_minutes``,
+    or a sum not equal to ``config.total_team_minutes`` all raise
+    InvalidManualMinutesError.
+
+    Every required player gets an entry, including at 0.0 minutes (benching a
+    player must be a visible, explicit row — never an omission), unlike
+    allocate_minutes's entries, which drop non-positive-weight players.
+    """
+    provided = set(manual_minutes)
+    if provided != required_player_ids:
+        missing = sorted(required_player_ids - provided)
+        unexpected = sorted(provided - required_player_ids)
+        details = []
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        if unexpected:
+            details.append(f"unexpected: {', '.join(unexpected)}")
+        raise InvalidManualMinutesError(
+            "manual_minutes must assign exactly the scenario roster ("
+            + "; ".join(details)
+            + ")"
+        )
+
+    negative = sorted(pid for pid, m in manual_minutes.items() if m < 0)
+    if negative:
+        raise InvalidManualMinutesError(
+            f"manual_minutes must not be negative: {', '.join(negative)}"
+        )
+
+    over_cap = sorted(
+        pid for pid, m in manual_minutes.items() if m > config.max_player_minutes + _FLOAT_TOLERANCE
+    )
+    if over_cap:
+        raise InvalidManualMinutesError(
+            f"manual_minutes must not exceed max_player_minutes={config.max_player_minutes}: "
+            f"{', '.join(over_cap)}"
+        )
+
+    total = sum(manual_minutes.values())
+    if abs(total - config.total_team_minutes) > _FLOAT_TOLERANCE:
+        raise InvalidManualMinutesError(
+            f"manual_minutes must sum to exactly {config.total_team_minutes}, got {total}"
+        )
+
+    return tuple(
+        RotationEntry(player_id=pid, minutes=manual_minutes[pid])
+        for pid in sorted(manual_minutes, key=lambda pid: (-manual_minutes[pid], pid))
+    )
 
 
 def _validate_pool_can_reach_total(

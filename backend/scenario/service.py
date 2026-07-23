@@ -32,6 +32,7 @@ from backend.minutes.allocator import (
     DEFAULT_MINUTES_CONFIG,
     MinutesAllocationConfig,
     allocate_minutes,
+    apply_manual_minutes,
 )
 from backend.providers.base import ContributionProvider
 
@@ -95,18 +96,31 @@ class RosterScenarioService:
         }
 
         baseline_allocation = allocate_minutes(baseline_weights, self._minutes_config)
-        scenario_allocation = allocate_minutes(scenario_weights, self._minutes_config)
+
+        # Baseline is never editable (real historical minutes, re-normalized) — only
+        # the scenario side can come from a manual override instead of the heuristic.
+        if request.manual_minutes is not None:
+            scenario_entries = apply_manual_minutes(
+                request.manual_minutes, frozenset(scenario_weights), self._minutes_config
+            )
+            scenario_repairs: tuple[str, ...] = ()
+            scenario_source = "manual"
+        else:
+            scenario_allocation = allocate_minutes(scenario_weights, self._minutes_config)
+            scenario_entries = scenario_allocation.entries
+            scenario_repairs = scenario_allocation.repairs
+            scenario_source = "heuristic"
 
         total_minutes = self._minutes_config.total_team_minutes
         baseline_contribution = _minutes_weighted_contribution(
             baseline_allocation.entries, contribution_values, total_minutes
         )
         scenario_contribution = _minutes_weighted_contribution(
-            scenario_allocation.entries, contribution_values, total_minutes
+            scenario_entries, contribution_values, total_minutes
         )
         contribution_change = scenario_contribution - baseline_contribution
 
-        final_scenario_rotation = scenario_allocation.entries + (
+        final_scenario_rotation = scenario_entries + (
             RotationEntry(player_id=request.player_out_id, minutes=0.0),
         )
 
@@ -122,7 +136,7 @@ class RosterScenarioService:
         )
 
         allocation_repairs = tuple(f"baseline: {r}" for r in baseline_allocation.repairs) + tuple(
-            f"scenario: {r}" for r in scenario_allocation.repairs
+            f"scenario: {r}" for r in scenario_repairs
         )
 
         return RosterScenarioResult(
@@ -141,10 +155,14 @@ class RosterScenarioService:
             contribution_epistemic_type=provider.get_epistemic_type(),
             minutes_method=MINUTES_METHOD,
             minutes_assumptions={
-                "editable": False,
+                # This deployment supports scenario-side manual minutes editing
+                # (a capability flag) — whether *this* response actually used it
+                # is the separate, per-response "scenario_source" fact below.
+                "editable": True,
                 "validated": False,
                 "total_minutes": self._minutes_config.total_team_minutes,
                 "maximum_player_minutes": self._minutes_config.max_player_minutes,
+                "scenario_source": scenario_source,
             },
             allocation_repairs=allocation_repairs,
             explanation_factors=explanation_factors,

@@ -172,3 +172,96 @@ def test_missing_required_field_returns_422_validation_error(client: TestClient)
         json={"team_id": "GSW", "season": SEASON_LABEL, "player_out_id": "x"},
     )
     assert response.status_code == 422
+
+
+def _scenario_player_ids(outgoing: str, incoming: str) -> set[str]:
+    """The scenario roster manual_minutes must exactly cover: GSW's roster minus
+    outgoing plus incoming, derived the same way the service does."""
+    season_data = load_historical_season(SEASON_LABEL)
+    gsw_ids = season_data.rosters["GSW"].player_ids()
+    return set((gsw_ids - {outgoing}) | {incoming})
+
+
+def test_manual_minutes_valid_override_returns_200(
+    client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]
+) -> None:
+    outgoing, incoming = gsw_outgoing_and_incoming
+    scenario_ids = sorted(_scenario_player_ids(outgoing, incoming))
+    per_player = 240.0 / len(scenario_ids)
+    manual_minutes = {pid: per_player for pid in scenario_ids}
+    response = client.post(
+        "/scenarios", json=_request_body(outgoing, incoming, manual_minutes=manual_minutes)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["minutes_assumptions"]["scenario_source"] == "manual"
+    scenario_minutes = {e["player_id"]: e["minutes"] for e in body["scenario_rotation"]}
+    for pid, minutes in manual_minutes.items():
+        assert scenario_minutes[pid] == pytest.approx(minutes)
+
+
+def test_manual_minutes_wrong_key_set_returns_422_invalid_manual_minutes(
+    client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]
+) -> None:
+    outgoing, incoming = gsw_outgoing_and_incoming
+    response = client.post(
+        "/scenarios",
+        json=_request_body(outgoing, incoming, manual_minutes={incoming: 240.0}),
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "INVALID_MANUAL_MINUTES"
+
+
+def test_manual_minutes_negative_value_returns_422_invalid_manual_minutes(
+    client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]
+) -> None:
+    outgoing, incoming = gsw_outgoing_and_incoming
+    scenario_ids = sorted(_scenario_player_ids(outgoing, incoming))
+    manual_minutes = dict.fromkeys(scenario_ids, 0.0)
+    manual_minutes[scenario_ids[0]] = -5.0
+    manual_minutes[scenario_ids[1]] = 240.0 + 5.0
+    response = client.post(
+        "/scenarios", json=_request_body(outgoing, incoming, manual_minutes=manual_minutes)
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "INVALID_MANUAL_MINUTES"
+
+
+def test_manual_minutes_over_cap_value_returns_422_invalid_manual_minutes(
+    client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]
+) -> None:
+    outgoing, incoming = gsw_outgoing_and_incoming
+    scenario_ids = sorted(_scenario_player_ids(outgoing, incoming))
+    manual_minutes = dict.fromkeys(scenario_ids, 0.0)
+    manual_minutes[scenario_ids[0]] = 41.0
+    manual_minutes[scenario_ids[1]] = 240.0 - 41.0
+    response = client.post(
+        "/scenarios", json=_request_body(outgoing, incoming, manual_minutes=manual_minutes)
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "INVALID_MANUAL_MINUTES"
+
+
+def test_manual_minutes_sum_not_240_returns_422_invalid_manual_minutes(
+    client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]
+) -> None:
+    outgoing, incoming = gsw_outgoing_and_incoming
+    scenario_ids = sorted(_scenario_player_ids(outgoing, incoming))
+    manual_minutes = dict.fromkeys(scenario_ids, 0.0)
+    manual_minutes[scenario_ids[0]] = 200.0  # sums to 200, not 240
+    response = client.post(
+        "/scenarios", json=_request_body(outgoing, incoming, manual_minutes=manual_minutes)
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "INVALID_MANUAL_MINUTES"
+
+
+def test_manual_minutes_omitted_field_matches_existing_default_behavior(
+    client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]
+) -> None:
+    outgoing, incoming = gsw_outgoing_and_incoming
+    response = client.post("/scenarios", json=_request_body(outgoing, incoming))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["minutes_assumptions"]["scenario_source"] == "heuristic"
+    assert body["minutes_assumptions"]["editable"] is True

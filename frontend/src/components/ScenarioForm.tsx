@@ -59,6 +59,13 @@ export function ScenarioForm() {
   const teamRoster = useTeamRoster(SEASON, selection.teamId);
 
   const [submission, setSubmission] = useState<SubmissionState>({ status: "idle" });
+  // The provider actually submitted with the current successViewModel — snapshotted
+  // separately since the response's provider_type is a different enum (see
+  // EditableScenarioMinutes' own prop comment) and `selection` may keep changing
+  // after submission while the prior result is still on screen.
+  const [submittedProvider, setSubmittedProvider] = useState<ContributionProviderChoice | null>(
+    null,
+  );
   const abortRef = useRef<AbortController | null>(null);
 
   // Season is locked to its one supported value — normalize it into the URL
@@ -168,6 +175,8 @@ export function ScenarioForm() {
       player_in_id: selection.playerInId,
       contribution_provider: selection.contributionProvider,
     };
+
+    setSubmittedProvider(request.contribution_provider);
 
     try {
       const response = await postScenario(request, { signal: controller.signal });
@@ -293,13 +302,14 @@ export function ScenarioForm() {
 
       <ScenarioStatus id={STATUS_REGION_ID} state={submission} />
 
-      {successViewModel ? (
+      {successViewModel && submittedProvider ? (
         <ScenarioSuccessPreview
           viewModel={successViewModel}
           teamLabel={selection.teamId ?? successViewModel.teamId}
           playerOutLabel={playerLabel(successViewModel.playerOutId)}
           playerInLabel={playerLabel(successViewModel.playerInId)}
           playerLabel={playerLabel}
+          contributionProvider={submittedProvider}
         />
       ) : null}
     </form>

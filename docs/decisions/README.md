@@ -52,3 +52,11 @@ and re-evaluation triggers.
   component state synced to URL search params (no state library, no
   TanStack Query for v1), a thin reshape-only view-model boundary, and no new
   backend/database/auth (2026-07-21).
+* [0009 — Editable Scenario Minutes](0009-editable-scenario-minutes.md) —
+  **Accepted**: `POST /scenarios` gains an optional `manual_minutes` field —
+  a complete, strictly-validated (no silent rebalance) manual override of the
+  full post-swap scenario rotation; baseline stays permanently read-only; a
+  new `InvalidManualMinutesError`/`INVALID_MANUAL_MINUTES` distinguishes bad
+  user input from an automatic-allocator failure; a new
+  `EditableScenarioMinutes.tsx` frontend component shows default and edited
+  results side by side (2026-07-23).

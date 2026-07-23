@@ -220,10 +220,11 @@ without parsing a compound string:
   "contribution_epistemic_type": "historical_benchmark",
   "minutes_method": "heuristic-v1",
   "minutes_assumptions": {
-    "editable": false,
+    "editable": true,
     "validated": false,
     "total_minutes": 240.0,
-    "maximum_player_minutes": 40.0
+    "maximum_player_minutes": 40.0,
+    "scenario_source": "heuristic"
   },
   "allocation_repairs": [],
   "explanation_factors": [
@@ -241,6 +242,12 @@ without parsing a compound string:
   "model_version": null
 }
 ```
+
+`minutes_assumptions.editable` is a capability flag (this deployment
+supports the `manual_minutes` request field — decision 0009), not a
+statement about whether *this* response used it; `scenario_source` (`
+"heuristic"` or `"manual"`) carries that per-response fact. The baseline
+side is never manually overridable, so there is no `baseline_source` key.
 
 There is no `projected_wins`, `projected_team_impact`, `profile_changes`, or
 `win_conversion_version` field — none of that methodology is approved yet
@@ -449,9 +456,10 @@ Example:
   "minutes_method": "heuristic-v1",
   "minutes_assumptions": {
     "validated": false,
-    "editable": false,
+    "editable": true,
     "total_minutes": 240,
-    "maximum_player_minutes": 40
+    "maximum_player_minutes": 40,
+    "scenario_source": "heuristic"
   }
 }
 ```
@@ -464,34 +472,43 @@ Never reuse `heuristic-v1` after materially changing its behavior.
 
 ## 15. Editable Minutes
 
-Editable minutes belong to the scenario-sensitivity phase.
+Implemented (decision 0009): `POST /scenarios` accepts an optional
+`manual_minutes: dict[str, float]` request field — a complete player_id ->
+minutes assignment for the **scenario** rotation only. The baseline
+rotation always reflects real historical minutes (re-normalized to 240 via
+the same heuristic allocator as always) and is never editable.
 
-The user should be able to:
-
-* adjust player minutes
-* see the current total
-* receive validation feedback
-* reset to defaults
-* rerun the scenario
-* compare default and edited outputs
-
-The UI must not silently rebalance user-entered minutes unless that behavior is clearly disclosed.
-
-Possible behavior:
-
-```text
-User enters invalid rotation
-→ show validation error
-→ do not calculate until corrected
-```
-
-or:
+`manual_minutes`, when present, must be a *complete* assignment: its key
+set must exactly match the post-swap scenario roster (the outgoing player
+is structurally excluded — the forced zero-minute entry for them is always
+appended separately, regardless of source). A missing or unexpected key, a
+negative value, a value over `maximum_player_minutes`, or a sum not equal
+to `total_minutes` all reject the request with `INVALID_MANUAL_MINUTES`
+(422) — no partial maps, no implicit-zero fill, and never a silent
+rebalance:
 
 ```text
-User requests auto-balance
-→ engine adjusts values
-→ show every adjustment
+User submits manual_minutes
+→ apply_manual_minutes() validates: exact key set, no negatives,
+  no value over the cap, sum == total_minutes (within float tolerance)
+→ any violation rejects the whole request with INVALID_MANUAL_MINUTES
+→ otherwise the scenario rotation is exactly what was submitted,
+  including 0.0 entries for benched players (never omitted)
 ```
+
+The response's `minutes_assumptions.scenario_source` (`"heuristic"` or
+`"manual"`) records which path produced that response's scenario rotation;
+`"editable"` is a permanent capability flag, not a per-response fact.
+
+The Roster Lab frontend (`EditableScenarioMinutes.tsx`) satisfies the "user
+should be able to" list above without a second request round-trip for
+Reset: it seeds an editable draft from the already-fetched default result,
+shows a live total gated against exact equality (Recalculate stays
+disabled with inline validation text otherwise — the UI never auto-
+corrects), and Reset simply reseeds the draft from the default result
+already in hand. Recalculate re-submits `POST /scenarios` with
+`manual_minutes` populated and shows the edited result **alongside** the
+original default result, never replacing it — see §25.
 
 ---
 
@@ -745,15 +762,26 @@ The deterministic explanation factors must remain stored and inspectable.
 
 The sensitivity phase should show how results change when assumptions change.
 
-Potential controls:
+Potential controls, and how each is satisfied (decision 0009):
 
-* incoming player minutes
-* outgoing player replacement minutes
-* maximum-player workload
-* active rotation size
-* replacement-level assumption
+* incoming player minutes — covered by the full-rotation `manual_minutes` override.
+* outgoing player replacement minutes — covered the same way (the incoming
+  player's minutes are just one entry in the manual assignment).
+* maximum-player workload — still a hard validation rule
+  (`maximum_player_minutes`) `apply_manual_minutes()` enforces on every
+  manual entry; not itself an adjustable control in this slice.
+* active rotation size — an emergent property of the general mechanism,
+  not a separate control: setting a player's manual minutes to 0 benches
+  them, and any player the automatic allocator excluded can be manually
+  activated with a nonzero value.
+* replacement-level assumption — explicitly **out of scope**; no
+  replacement-level projection concept exists yet (§18 unresolved).
 
-The product should display:
+One full-rotation manual override was chosen over five bespoke controls
+because it subsumes four of the five with no per-lever code — see decision
+0009's "Options Considered" for the full reasoning.
+
+The product displays:
 
 * default result
 * edited result
@@ -920,6 +948,7 @@ Implemented mapping (`backend/api/errors.py`, reusing each error's existing
 | `SamePlayerSwapError` | 422 | `SAME_PLAYER_SWAP` |
 | `MissingContributionError` | 422 | `MISSING_CONTRIBUTION` |
 | `InvalidRotationError` | 422 | `INVALID_ROTATION` |
+| `InvalidManualMinutesError` | 422 | `INVALID_MANUAL_MINUTES` |
 | any other `DomainError` (e.g. `InvalidRosterError`, the fixture-loading errors) | 500 | the error's own `.code` |
 
 A `DomainError` is caught by a single FastAPI exception handler

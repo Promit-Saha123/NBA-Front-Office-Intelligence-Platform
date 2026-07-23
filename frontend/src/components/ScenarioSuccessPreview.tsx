@@ -1,7 +1,9 @@
 import type { ScenarioViewModel } from "@/lib/view-model";
+import type { ContributionProviderChoice } from "@/lib/url-state";
 import { RotationComparisonTable } from "./RotationComparisonTable";
 import { ExplanationFactorsList } from "./ExplanationFactorsList";
 import { ScenarioDisclosuresPanel } from "./ScenarioDisclosuresPanel";
+import { EditableScenarioMinutes } from "./EditableScenarioMinutes";
 import styles from "./ScenarioForm.module.css";
 
 export interface ScenarioSuccessPreviewProps {
@@ -14,6 +16,9 @@ export interface ScenarioSuccessPreviewProps {
   playerOutLabel: string;
   playerInLabel: string;
   playerLabel: (playerId: string) => string;
+  /** Threaded down to EditableScenarioMinutes for its own recalculate request —
+   *  not derivable from the response (see that component's own prop comment). */
+  contributionProvider: ContributionProviderChoice;
 }
 
 /**
@@ -30,6 +35,7 @@ export function ScenarioSuccessPreview({
   playerOutLabel,
   playerInLabel,
   playerLabel,
+  contributionProvider,
 }: ScenarioSuccessPreviewProps) {
   return (
     <section className={styles.successPreview} aria-labelledby="results-heading">
@@ -82,6 +88,12 @@ export function ScenarioSuccessPreview({
         <h3 id="factors-heading">What changed</h3>
         <ExplanationFactorsList factors={viewModel.explanationFactors} />
       </section>
+
+      <EditableScenarioMinutes
+        viewModel={viewModel}
+        contributionProvider={contributionProvider}
+        playerLabel={playerLabel}
+      />
 
       <ScenarioDisclosuresPanel disclosures={viewModel.disclosures} season={viewModel.season} />
     </section>
