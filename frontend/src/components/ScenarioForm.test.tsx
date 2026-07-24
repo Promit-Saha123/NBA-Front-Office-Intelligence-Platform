@@ -21,6 +21,7 @@ const routerMocks = vi.hoisted(() => {
     replace: vi.fn(),
     reset: () => {
       search = "";
+      window.history.replaceState(null, "", "/");
       routerMocks.push.mockClear();
       routerMocks.replace.mockClear();
     },
@@ -32,16 +33,24 @@ const routerMocks = vi.hoisted(() => {
  * module-level "current URL" and notify subscribers via useSyncExternalStore,
  * so useSearchParams() re-renders consumers the same way real client-side
  * navigation would — without an actual Next.js router (no official test
- * utility exists for this as of writing).
+ * utility exists for this as of writing). Also updates `window.location` via
+ * the real History API (`replaceState`/`pushState`), matching what real
+ * Next.js does under the hood — use-scenario-selection.ts reads
+ * `window.location.search` directly (not just useSearchParams()) specifically
+ * to avoid a stale-closure race across rapid successive navigations; this
+ * mock has to reflect that same real-URL update for that fix to be
+ * exercised correctly under test, not silently reading an always-empty URL.
  */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: (href: string, options?: unknown) => {
       routerMocks.push(href, options);
+      window.history.pushState(null, "", href);
       routerMocks.setSearch(href.includes("?") ? href.slice(href.indexOf("?") + 1) : "");
     },
     replace: (href: string, options?: unknown) => {
       routerMocks.replace(href, options);
+      window.history.replaceState(null, "", href);
       routerMocks.setSearch(href.includes("?") ? href.slice(href.indexOf("?") + 1) : "");
     },
   }),
@@ -109,22 +118,25 @@ const VALID_RESPONSE: ScenarioResponse = {
   minutes_assumptions: { editable: false, validated: false, total_minutes: 240 },
   allocation_repairs: [],
   explanation_factors: [],
+  team_profile: [],
   historical_only: true,
   attribution: ["FiveThirtyEight NBA RAPTOR data, CC BY 4.0"],
   model_version: null,
 };
 
 function setInitialUrl(query: string) {
-  routerMocks.setSearch(query.replace(/^\?/, ""));
+  const normalized = query.replace(/^\?/, "");
+  window.history.replaceState(null, "", normalized ? `/?${normalized}` : "/");
+  routerMocks.setSearch(normalized);
 }
 
 async function waitForTeamsLoaded() {
-  await waitFor(() => expect(screen.getByLabelText(/^team/i)).not.toBeDisabled());
+  await waitFor(() => expect(screen.getByLabelText(/^team(?!\s*profile)/i)).not.toBeDisabled());
 }
 
 async function selectTeam(user: ReturnType<typeof userEvent.setup>, teamId: string) {
   await waitForTeamsLoaded();
-  await user.selectOptions(screen.getByLabelText(/^team/i), teamId);
+  await user.selectOptions(screen.getByLabelText(/^team(?!\s*profile)/i), teamId);
   await waitFor(() => expect(screen.getByLabelText(/player to remove/i)).not.toBeDisabled());
 }
 
@@ -163,7 +175,7 @@ describe("initial state from the URL", () => {
       "season=2014-15&team_id=GSW&player_out_id=barbole01&player_in_id=acyqu01&contribution_provider=historical_benchmark",
     );
     render(<ScenarioForm />);
-    await waitFor(() => expect(screen.getByLabelText(/^team/i)).toHaveValue("GSW"));
+    await waitFor(() => expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toHaveValue("GSW"));
     await waitFor(() => expect(screen.getByLabelText(/player to remove/i)).toHaveValue("barbole01"));
     expect(screen.getByLabelText(/player to add/i)).toHaveValue("acyqu01");
     expect(screen.getByLabelText(/contribution provider/i)).toHaveValue("historical_benchmark");
@@ -172,14 +184,14 @@ describe("initial state from the URL", () => {
   it("treats a malformed contribution_provider as unset, not a silently-accepted value", async () => {
     setInitialUrl("season=2014-15&contribution_provider=not-a-real-provider");
     render(<ScenarioForm />);
-    await waitFor(() => expect(screen.getByLabelText(/^team/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toBeInTheDocument());
     expect(screen.getByLabelText(/contribution provider/i)).toHaveValue("");
     expect(screen.getByRole("button", { name: /run scenario/i })).toBeDisabled();
   });
 
   it("treats missing parameters as an empty, valid initial state (never throws)", async () => {
     render(<ScenarioForm />);
-    expect(screen.getByLabelText(/^team/i)).toHaveValue("");
+    expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toHaveValue("");
     expect(screen.getByRole("button", { name: /run scenario/i })).toBeDisabled();
   });
 });
@@ -230,7 +242,7 @@ describe("selection-prevention rules", () => {
     await waitFor(() =>
       expect(screen.getByText(/that team wasn't found for this season/i)).toBeInTheDocument(),
     );
-    const team = screen.getByLabelText(/^team/i);
+    const team = screen.getByLabelText(/^team(?!\s*profile)/i);
     // The invalid id stays visible (not silently blanked) so the error text is legible.
     expect(team).toHaveValue("ZZZ");
     expect(team).toHaveAttribute("aria-invalid", "true");
@@ -259,7 +271,7 @@ describe("selection-prevention rules", () => {
     const user = userEvent.setup();
     render(<ScenarioForm />);
     await waitForTeamsLoaded();
-    await user.selectOptions(screen.getByLabelText(/^team/i), "GSW");
+    await user.selectOptions(screen.getByLabelText(/^team(?!\s*profile)/i), "GSW");
 
     // Roster fetch is still pending — player-in must not yet be enabled with
     // an unfiltered (potentially roster-inclusive) option list.
@@ -376,13 +388,13 @@ describe("submission", () => {
     await fillValidSelection(user);
     await user.click(screen.getByRole("button", { name: /run scenario/i }));
 
-    expect(screen.getByLabelText(/^team/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toBeDisabled();
     expect(screen.getByLabelText(/player to remove/i)).toBeDisabled();
     expect(screen.getByLabelText(/player to add/i)).toBeDisabled();
     expect(screen.getByLabelText(/contribution provider/i)).toBeDisabled();
 
     resolvePromise(VALID_RESPONSE);
-    await waitFor(() => expect(screen.getByLabelText(/^team/i)).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByLabelText(/^team(?!\s*profile)/i)).not.toBeDisabled());
   });
 
   it("aborts the in-flight request on unmount without throwing", async () => {
@@ -412,7 +424,7 @@ describe("submission", () => {
     await user.click(screen.getByRole("button", { name: /run scenario/i }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByLabelText(/^team/i)).toHaveValue("GSW");
+    expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toHaveValue("GSW");
     expect(screen.getByLabelText(/player to remove/i)).toHaveValue("barbole01");
     expect(screen.getByLabelText(/player to add/i)).toHaveValue("acyqu01");
   });
@@ -524,6 +536,24 @@ const RESULTS_RESPONSE: ScenarioResponse = {
       importance: 1.0,
     },
   ],
+  team_profile: [
+    {
+      category: "offensive_impact",
+      baseline_value: 1.2,
+      scenario_value: 1.5,
+      change: 0.3,
+      direction: "increase",
+      epistemic_type: "descriptive_interpretation",
+    },
+    {
+      category: "defensive_impact",
+      baseline_value: -0.4,
+      scenario_value: -0.6,
+      change: -0.2,
+      direction: "decrease",
+      epistemic_type: "descriptive_interpretation",
+    },
+  ],
 };
 
 describe("results and disclosures (UI-003)", () => {
@@ -536,6 +566,7 @@ describe("results and disclosures (UI-003)", () => {
     await waitFor(() => expect(button).not.toBeDisabled());
     await user.click(button);
     await waitFor(() => expect(screen.getByText(/completed successfully/i)).toBeInTheDocument());
+    return user;
   }
 
   it("shows the rotation comparison with resolved player names and a 240-minute total on each side", async () => {
@@ -570,9 +601,23 @@ describe("results and disclosures (UI-003)", () => {
 
   it("renders explanation factors traceable to the calculated baseline/scenario values", async () => {
     await submitAndGetResults();
-    expect(screen.getByText("Team contribution")).toBeInTheDocument();
-    expect(screen.getByText(/-1\.830 → -1\.870/)).toBeInTheDocument();
-    expect(screen.getByText(/Decreased/)).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: /what changed/i });
+    const section = heading.closest("section")!;
+    expect(within(section).getByText("Team contribution")).toBeInTheDocument();
+    expect(within(section).getByText(/-1\.830 → -1\.870/)).toBeInTheDocument();
+    expect(within(section).getByText(/Decreased/)).toBeInTheDocument();
+  });
+
+  it("renders the team profile section with offensive/defensive impact", async () => {
+    await submitAndGetResults();
+    const heading = screen.getByRole("heading", { name: /team profile/i });
+    expect(heading).toBeInTheDocument();
+    const section = heading.closest("section")!;
+    expect(within(section).getByText("Offensive impact")).toBeInTheDocument();
+    expect(within(section).getByText("Defensive impact")).toBeInTheDocument();
+    expect(
+      within(section).getByText(/heuristic scenario profile, not a validated causal fit model/i),
+    ).toBeInTheDocument();
   });
 
   it("renders the historical-prototype banner, provider badge, and not-a-prediction disclaimer", async () => {
@@ -650,16 +695,28 @@ describe("results and disclosures (UI-003)", () => {
     expect(screen.getByText(/excluded \(rotation size limit\): \['acyqu01'\]/)).toBeInTheDocument();
   });
 
+  it("marks the result stale when a field changes after submission, without touching it", async () => {
+    const user = await submitAndGetResults();
+    expect(screen.queryByText(/no longer matches them/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/contribution provider/i), "synthetic");
+
+    expect(screen.getByText(/your selections have changed.*no longer matches them/i)).toBeInTheDocument();
+    // The result itself is untouched — still the same data, just visually flagged.
+    expect(screen.getByRole("heading", { name: /scenario result/i })).toBeInTheDocument();
+  });
+
   it("shows the editable-minutes table after a successful submit, seeded with the submitted provider", async () => {
     await submitAndGetResults();
 
-    expect(screen.getByRole("heading", { name: /edit scenario minutes/i })).toBeInTheDocument();
-    // Two tables now exist: the read-only comparison above, and the editable one below it.
-    expect(screen.getAllByRole("table")).toHaveLength(2);
+    // One table only (design-review fix: editing toggles the same table's
+    // Scenario column into inputs rather than rendering a second one).
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /edit scenario minutes/i }));
 
     const recalculate = screen.getByRole("button", { name: /recalculate/i });
     await waitFor(() => expect(recalculate).not.toBeDisabled());
-    const user = userEvent.setup();
     await user.click(recalculate);
 
     // The second call (the edit's own recalculate) must reuse the exact request
@@ -677,23 +734,51 @@ describe("results and disclosures (UI-003)", () => {
       }),
     );
   });
+
+  it("Start over clears every selected field and any shown result, leaving season untouched", async () => {
+    const user = await submitAndGetResults();
+    expect(screen.getByRole("heading", { name: /scenario result/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /start over/i }));
+
+    expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toHaveValue("");
+    expect(screen.getByLabelText(/player to remove/i)).toHaveValue("");
+    expect(screen.getByLabelText(/player to add/i)).toHaveValue("");
+    expect(screen.getByLabelText(/contribution provider/i)).toHaveValue("");
+    expect(screen.queryByRole("heading", { name: /scenario result/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/season/i)).toHaveTextContent("2014-15");
+  });
+});
+
+describe("start over", () => {
+  it("is disabled on a blank form and enabled once any field is set", async () => {
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    const startOver = screen.getByRole("button", { name: /start over/i });
+    expect(startOver).toBeDisabled();
+
+    await selectTeam(user, "GSW");
+    expect(startOver).not.toBeDisabled();
+  });
 });
 
 describe("accessibility", () => {
   it("gives every field a programmatic accessible name", async () => {
     render(<ScenarioForm />);
     expect(screen.getByLabelText(/season/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^team/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^team(?!\s*profile)/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/player to remove/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/player to add/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/contribution provider/i)).toBeInTheDocument();
   });
 
-  it("locks the season field with a visible, understandable disabled state", async () => {
+  it("shows the season as static, non-interactive text rather than a fake-disabled control", async () => {
     render(<ScenarioForm />);
+    // Static text (not a <select>) — design-review finding: a disabled select
+    // with one option still looks clickable and invites a pointless click.
     const season = screen.getByLabelText(/season/i);
-    expect(season).toBeDisabled();
-    expect(season).toHaveValue("2014-15");
+    expect(season.tagName).toBe("P");
+    expect(season).toHaveTextContent("2014-15");
     expect(screen.getByText(/only the 2014-15 season is available/i)).toBeInTheDocument();
   });
 

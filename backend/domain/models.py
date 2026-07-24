@@ -135,6 +135,20 @@ class PlayerContribution:
 
 
 @dataclass(frozen=True)
+class PlayerImpactProfile:
+    """A player's offense/defense impact split, as returned by a ContributionProvider.
+
+    Carries only the two values, not player_id/season/provider metadata —
+    that's already available at the call site and from the provider's own
+    get_provider_type()/get_epistemic_type()/etc., the same reasoning that
+    keeps get_player_contribution's return type a bare float.
+    """
+
+    offensive_impact: float
+    defensive_impact: float
+
+
+@dataclass(frozen=True)
 class RotationEntry:
     player_id: str
     minutes: float
@@ -165,6 +179,26 @@ class ScenarioExplanationFactor:
 
 
 @dataclass(frozen=True)
+class TeamProfileCategory:
+    """A descriptive, minutes-weighted team-profile comparison (decision 0010).
+
+    Deliberately a distinct type from ScenarioExplanationFactor, not a reuse:
+    this always carries EpistemicType.DESCRIPTIVE_INTERPRETATION regardless of
+    which provider supplied the underlying numbers (a real distinction
+    ScenarioExplanationFactor has no field for), and keeping it a separate
+    type/field makes "this must never feed contribution/win logic"
+    (scenario-engine.md §22) enforceable by shape, not just convention.
+    """
+
+    category: str
+    baseline_value: float
+    scenario_value: float
+    change: float
+    direction: str
+    epistemic_type: EpistemicType
+
+
+@dataclass(frozen=True)
 class MinutesAllocationResult:
     entries: tuple[RotationEntry, ...]
     repairs: tuple[str, ...]
@@ -189,6 +223,7 @@ class RosterScenarioResult:
     minutes_assumptions: dict[str, float | bool | str]
     allocation_repairs: tuple[str, ...]
     explanation_factors: tuple[ScenarioExplanationFactor, ...]
+    team_profile: tuple[TeamProfileCategory, ...]
     historical_only: bool
     attribution: tuple[str, ...]
     model_version: str | None = None

@@ -52,6 +52,15 @@ class ExplanationFactorResponse(BaseModel):
     importance: float
 
 
+class TeamProfileCategoryResponse(BaseModel):
+    category: str
+    baseline_value: float
+    scenario_value: float
+    change: float
+    direction: str
+    epistemic_type: EpistemicType
+
+
 class ScenarioResponse(BaseModel):
     team_id: str
     season: str
@@ -70,6 +79,7 @@ class ScenarioResponse(BaseModel):
     minutes_assumptions: dict[str, float | bool | str]
     allocation_repairs: list[str]
     explanation_factors: list[ExplanationFactorResponse]
+    team_profile: list[TeamProfileCategoryResponse]
     historical_only: bool
     attribution: list[str]
     model_version: str | None

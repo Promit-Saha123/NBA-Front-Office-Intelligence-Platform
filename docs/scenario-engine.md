@@ -237,6 +237,24 @@ without parsing a compound string:
       "importance": 1.0
     }
   ],
+  "team_profile": [
+    {
+      "category": "offensive_impact",
+      "baseline_value": 0.42,
+      "scenario_value": 0.51,
+      "change": 0.09,
+      "direction": "increase",
+      "epistemic_type": "descriptive_interpretation"
+    },
+    {
+      "category": "defensive_impact",
+      "baseline_value": -0.18,
+      "scenario_value": -0.22,
+      "change": -0.04,
+      "direction": "decrease",
+      "epistemic_type": "descriptive_interpretation"
+    }
+  ],
   "historical_only": true,
   "attribution": ["FiveThirtyEight NBA RAPTOR data, CC BY 4.0"],
   "model_version": null
@@ -249,11 +267,19 @@ statement about whether *this* response used it; `scenario_source` (`
 "heuristic"` or `"manual"`) carries that per-response fact. The baseline
 side is never manually overridable, so there is no `baseline_source` key.
 
-There is no `projected_wins`, `projected_team_impact`, `profile_changes`, or
+`team_profile` (decision 0010) is a fully separate, parallel field from
+`explanation_factors` — always exactly two categories in v1
+(`offensive_impact`, `defensive_impact`, from RAPTOR's own offense/defense
+split), always `epistemic_type: "descriptive_interpretation"` regardless of
+which provider produced the underlying numbers, and never influences
+`contribution_change` or any win-related number (§22). See §21.
+
+There is no `projected_wins`, `projected_team_impact`, or
 `win_conversion_version` field — none of that methodology is approved yet
 (decision 0007 §10, §22); see `docs/architecture/README.md`'s "Scenario
-service" section. `model_version` is always `null` in the free MVP (no
-trained model ships — decision 0007). `provider_type` and
+service" section. (`profile_changes`-shaped data now exists, as
+`team_profile` — decision 0010.) `model_version` is always `null` in the
+free MVP (no trained model ships — decision 0007). `provider_type` and
 `contribution_epistemic_type` use the exact enum values from
 `backend/domain/models.py` (`ProviderType`, `EpistemicType`).
 
@@ -521,10 +547,15 @@ provider-specific) field names.
 ```text
 ContributionProvider (interface)
 - get_player_contribution(player_id, season)
+- get_player_profile(player_id, season)
 - get_provider_version()
 - get_data_version()
 - get_epistemic_type()
 ```
+
+Team-profile data (decision 0010, §21) is loaded through this same
+interface — no team-profile-specific code path reads a provider's source
+schema directly.
 
 Implementations: `HistoricalRaptorBenchmarkProvider` and
 `SyntheticContributionProvider` in the free MVP; `PceProvider` in the future PCE
@@ -648,7 +679,17 @@ Do not hardcode unexplained conversions.
 
 In v1, fit outputs are descriptive.
 
-Possible profile categories:
+**Implemented (decision 0010):** offensive impact, defensive impact —
+RAPTOR's own `raptor_offense`/`raptor_defense` split, minutes-weighted
+using the same formula as §17's contribution aggregation, reported as raw
+values with no normalization applied (see below). Always labeled
+`descriptive_interpretation`; never feeds §22's win/contribution rules.
+
+**Deferred, not computable with this project's current licensed data**
+(would require box-score fields — FGA, 3PA, AST, TOV, ORB, DRB, STL, BLK —
+that don't exist in the pinned RAPTOR snapshot; see decision 0010's
+"Options Considered" and decision 0006 for the box-score acquisition this
+depends on):
 
 * shooting
 * three-point volume
@@ -665,10 +706,11 @@ Possible profile categories:
 
 Profile values may be calculated using:
 
-* minutes-weighted player rates
-* standardized league-relative scores
-* percentile ranks
-* normalized team indices
+* **minutes-weighted player rates** — used in v1, no normalization applied
+* standardized league-relative scores — not used in v1 (no league-baseline
+  computation exists in the codebase to reuse; would need its own decision)
+* percentile ranks — not used in v1
+* normalized team indices — not used in v1
 
 The method must be documented.
 

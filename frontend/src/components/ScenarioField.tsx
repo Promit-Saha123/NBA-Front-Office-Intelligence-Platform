@@ -5,6 +5,26 @@ import styles from "./ScenarioForm.module.css";
 export interface ScenarioFieldOption {
   value: string;
   label: string;
+  /** When set, options are chunked into <optgroup>s in first-seen group order
+   *  (a native, zero-dependency way to break up a long flat list — design-review
+   *  finding: 478 players in one ungrouped list, a real "wall of options"). */
+  group?: string;
+}
+
+/** Buckets options into ordered [group, options][] pairs, preserving each
+ *  group's first-seen order and each option's original order within it.
+ *  Ungrouped options (no `group`) form their own bucket under `null`. */
+function groupOptions(
+  options: ScenarioFieldOption[],
+): { group: string | null; options: ScenarioFieldOption[] }[] {
+  const buckets = new Map<string | null, ScenarioFieldOption[]>();
+  for (const option of options) {
+    const key = option.group ?? null;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(option);
+    else buckets.set(key, [option]);
+  }
+  return Array.from(buckets, ([group, groupOptions]) => ({ group, options: groupOptions }));
 }
 
 export interface ScenarioFieldProps {
@@ -62,11 +82,23 @@ export function ScenarioField({
         <option value="" disabled hidden>
           {placeholder}
         </option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {groupOptions(options).map(({ group, options: groupedOptions }) =>
+          group === null ? (
+            groupedOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))
+          ) : (
+            <optgroup key={group} label={group}>
+              {groupedOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+          ),
+        )}
       </select>
       {helpText ? (
         <p id={helpId} className={styles.help}>

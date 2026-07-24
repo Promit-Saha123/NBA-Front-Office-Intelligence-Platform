@@ -37,6 +37,16 @@ function sampleResponse(overrides: Partial<ScenarioResponse> = {}): ScenarioResp
         importance: 1.0,
       },
     ],
+    team_profile: [
+      {
+        category: "offensive_impact",
+        baseline_value: 1.2,
+        scenario_value: 1.5,
+        change: 0.3,
+        direction: "increase",
+        epistemic_type: "descriptive_interpretation",
+      },
+    ],
     historical_only: true,
     attribution: ["FiveThirtyEight NBA RAPTOR data, CC BY 4.0"],
     model_version: null,
@@ -67,6 +77,12 @@ describe("toScenarioViewModel", () => {
     const response = sampleResponse();
     const vm = toScenarioViewModel(response);
     expect(vm.explanationFactors).toEqual(response.explanation_factors);
+  });
+
+  it("passes team profile through unmodified — never generates new ones", () => {
+    const response = sampleResponse();
+    const vm = toScenarioViewModel(response);
+    expect(vm.teamProfile).toEqual(response.team_profile);
   });
 
   it("groups disclosure fields verbatim from the response", () => {
@@ -134,6 +150,7 @@ describe("toScenarioViewModel", () => {
         "scenarioContribution",
         "contributionChange",
         "explanationFactors",
+        "teamProfile",
         "allocationRepairs",
         "disclosures",
       ].sort(),

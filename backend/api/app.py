@@ -31,6 +31,7 @@ from backend.api.schemas import (
     ScenarioRequest,
     ScenarioResponse,
     SeasonPlayersResponse,
+    TeamProfileCategoryResponse,
     TeamRosterResponse,
     TeamsResponse,
 )
@@ -175,6 +176,17 @@ def _to_response(result: RosterScenarioResult) -> ScenarioResponse:
                 importance=f.importance,
             )
             for f in result.explanation_factors
+        ],
+        team_profile=[
+            TeamProfileCategoryResponse(
+                category=c.category,
+                baseline_value=c.baseline_value,
+                scenario_value=c.scenario_value,
+                change=c.change,
+                direction=c.direction,
+                epistemic_type=c.epistemic_type,
+            )
+            for c in result.team_profile
         ],
         historical_only=result.historical_only,
         attribution=list(result.attribution),

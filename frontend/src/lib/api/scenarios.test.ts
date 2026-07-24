@@ -34,6 +34,7 @@ const VALID_RESPONSE: ScenarioResponse = {
   minutes_assumptions: { editable: false, validated: false, total_minutes: 240 },
   allocation_repairs: [],
   explanation_factors: [],
+  team_profile: [],
   historical_only: true,
   attribution: ["FiveThirtyEight NBA RAPTOR data, CC BY 4.0"],
   model_version: null,

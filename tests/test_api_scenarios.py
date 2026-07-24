@@ -77,6 +77,15 @@ def test_successful_scenario_with_historical_benchmark_provider(
         expected_change = factor["scenario_value"] - factor["baseline_value"]
         assert factor["change"] == pytest.approx(expected_change)
 
+    assert {c["category"] for c in body["team_profile"]} == {
+        "offensive_impact",
+        "defensive_impact",
+    }
+    for category in body["team_profile"]:
+        assert category["epistemic_type"] == "descriptive_interpretation"
+        expected_change = category["scenario_value"] - category["baseline_value"]
+        assert category["change"] == pytest.approx(expected_change)
+
 
 def test_successful_scenario_with_synthetic_provider(
     client: TestClient, gsw_outgoing_and_incoming: tuple[str, str]

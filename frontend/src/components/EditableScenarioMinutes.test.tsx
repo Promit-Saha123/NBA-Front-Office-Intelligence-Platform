@@ -44,6 +44,7 @@ const DEFAULT_RESPONSE: ScenarioResponse = {
   },
   allocation_repairs: [],
   explanation_factors: [],
+  team_profile: [],
   historical_only: true,
   attribution: ["FiveThirtyEight NBA RAPTOR data, CC BY 4.0"],
   model_version: null,
@@ -73,13 +74,24 @@ async function setMinutes(user: ReturnType<typeof userEvent.setup>, label: RegEx
   await user.type(input, value);
 }
 
+/** The table starts read-only; editing (and thus the per-player inputs) only
+ *  appears after this toggle — folded into the one table per the design-review
+ *  fix for the previous duplicate-table issue. */
+async function startEditing(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /edit scenario minutes/i }));
+}
+
 beforeEach(() => {
   scenarioMocks.postScenario.mockReset();
 });
 
 describe("EditableScenarioMinutes", () => {
-  it("seeds one input per scenario-roster player, excluding the outgoing player", () => {
+  it("seeds one input per scenario-roster player, excluding the outgoing player, once editing starts", async () => {
+    const user = userEvent.setup();
     renderComponent();
+    expect(screen.queryByLabelText(/stephen curry scenario minutes/i)).not.toBeInTheDocument();
+
+    await startEditing(user);
     expect(screen.getByLabelText(/stephen curry scenario minutes/i)).toHaveValue(200);
     expect(screen.getByLabelText(/quincy acy scenario minutes/i)).toHaveValue(40);
     expect(screen.queryByLabelText(/leandro barbosa scenario minutes/i)).not.toBeInTheDocument();
@@ -88,6 +100,7 @@ describe("EditableScenarioMinutes", () => {
   it("updates the displayed total and gates Recalculate as inputs change", async () => {
     const user = userEvent.setup();
     renderComponent();
+    await startEditing(user);
     const recalculate = screen.getByRole("button", { name: /recalculate/i });
     expect(recalculate).not.toBeDisabled(); // seeded total already equals 240
 
@@ -108,6 +121,7 @@ describe("EditableScenarioMinutes", () => {
     });
     const user = userEvent.setup();
     renderComponent();
+    await startEditing(user);
 
     await setMinutes(user, /stephen curry scenario minutes/i, "150");
     await setMinutes(user, /quincy acy scenario minutes/i, "90");
@@ -131,6 +145,7 @@ describe("EditableScenarioMinutes", () => {
     scenarioMocks.postScenario.mockResolvedValue(DEFAULT_RESPONSE);
     const user = userEvent.setup();
     renderComponent();
+    await startEditing(user);
 
     await setMinutes(user, /stephen curry scenario minutes/i, "150");
     await setMinutes(user, /quincy acy scenario minutes/i, "90");
@@ -154,6 +169,7 @@ describe("EditableScenarioMinutes", () => {
     );
     const user = userEvent.setup();
     renderComponent();
+    await startEditing(user);
     await user.click(screen.getByRole("button", { name: /recalculate/i }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());

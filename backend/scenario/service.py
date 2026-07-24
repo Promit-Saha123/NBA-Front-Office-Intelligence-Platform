@@ -21,10 +21,12 @@ from backend.domain.errors import (
     UnsupportedSeasonError,
 )
 from backend.domain.models import (
+    EpistemicType,
     RosterScenarioRequest,
     RosterScenarioResult,
     RotationEntry,
     ScenarioExplanationFactor,
+    TeamProfileCategory,
     TeamRoster,
 )
 from backend.fixtures.historical_loader import HistoricalSeasonData
@@ -94,6 +96,15 @@ class RosterScenarioService:
             pid: provider.get_player_contribution(pid, request.season_label)
             for pid in baseline_ids | {request.player_in_id}
         }
+        # Team-profile (decision 0010) is computed from a fully separate provider
+        # method and value maps — never contribution_values — so it can never
+        # influence contribution_change/baseline_contribution/scenario_contribution.
+        profiles = {
+            pid: provider.get_player_profile(pid, request.season_label)
+            for pid in baseline_ids | {request.player_in_id}
+        }
+        offense_values = {pid: p.offensive_impact for pid, p in profiles.items()}
+        defense_values = {pid: p.defensive_impact for pid, p in profiles.items()}
 
         baseline_allocation = allocate_minutes(baseline_weights, self._minutes_config)
 
@@ -135,6 +146,23 @@ class RosterScenarioService:
             ),
         )
 
+        team_profile = (
+            _profile_category(
+                "offensive_impact",
+                _minutes_weighted_contribution(
+                    baseline_allocation.entries, offense_values, total_minutes
+                ),
+                _minutes_weighted_contribution(scenario_entries, offense_values, total_minutes),
+            ),
+            _profile_category(
+                "defensive_impact",
+                _minutes_weighted_contribution(
+                    baseline_allocation.entries, defense_values, total_minutes
+                ),
+                _minutes_weighted_contribution(scenario_entries, defense_values, total_minutes),
+            ),
+        )
+
         allocation_repairs = tuple(f"baseline: {r}" for r in baseline_allocation.repairs) + tuple(
             f"scenario: {r}" for r in scenario_repairs
         )
@@ -166,6 +194,7 @@ class RosterScenarioService:
             },
             allocation_repairs=allocation_repairs,
             explanation_factors=explanation_factors,
+            team_profile=team_profile,
             historical_only=True,
             attribution=(provider.get_attribution(),),
             model_version=None,
@@ -223,21 +252,37 @@ def _minutes_weighted_contribution(
     )
 
 
+def _direction(change: float) -> str:
+    if change > _DIRECTION_TOLERANCE:
+        return "increase"
+    if change < -_DIRECTION_TOLERANCE:
+        return "decrease"
+    return "no_change"
+
+
 def _explanation_factor(
     metric: str, baseline_value: float, scenario_value: float
 ) -> ScenarioExplanationFactor:
     change = scenario_value - baseline_value
-    if change > _DIRECTION_TOLERANCE:
-        direction = "increase"
-    elif change < -_DIRECTION_TOLERANCE:
-        direction = "decrease"
-    else:
-        direction = "no_change"
     return ScenarioExplanationFactor(
         metric=metric,
         baseline_value=baseline_value,
         scenario_value=scenario_value,
         change=change,
-        direction=direction,
+        direction=_direction(change),
         importance=1.0,
+    )
+
+
+def _profile_category(
+    category: str, baseline_value: float, scenario_value: float
+) -> TeamProfileCategory:
+    change = scenario_value - baseline_value
+    return TeamProfileCategory(
+        category=category,
+        baseline_value=baseline_value,
+        scenario_value=scenario_value,
+        change=change,
+        direction=_direction(change),
+        epistemic_type=EpistemicType.DESCRIPTIVE_INTERPRETATION,
     )

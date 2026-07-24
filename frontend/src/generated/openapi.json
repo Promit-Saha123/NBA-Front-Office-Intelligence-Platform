@@ -302,6 +302,13 @@
           "team_id": {
             "title": "Team Id",
             "type": "string"
+          },
+          "team_profile": {
+            "items": {
+              "$ref": "#/components/schemas/TeamProfileCategoryResponse"
+            },
+            "title": "Team Profile",
+            "type": "array"
           }
         },
         "required": [
@@ -322,6 +329,7 @@
           "minutes_assumptions",
           "allocation_repairs",
           "explanation_factors",
+          "team_profile",
           "historical_only",
           "attribution",
           "model_version"
@@ -348,6 +356,43 @@
           "players"
         ],
         "title": "SeasonPlayersResponse",
+        "type": "object"
+      },
+      "TeamProfileCategoryResponse": {
+        "properties": {
+          "baseline_value": {
+            "title": "Baseline Value",
+            "type": "number"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "change": {
+            "title": "Change",
+            "type": "number"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "epistemic_type": {
+            "$ref": "#/components/schemas/EpistemicType"
+          },
+          "scenario_value": {
+            "title": "Scenario Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "category",
+          "baseline_value",
+          "scenario_value",
+          "change",
+          "direction",
+          "epistemic_type"
+        ],
+        "title": "TeamProfileCategoryResponse",
         "type": "object"
       },
       "TeamRosterResponse": {

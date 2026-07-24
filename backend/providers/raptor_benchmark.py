@@ -8,7 +8,7 @@ a prediction — see decision 0007 §2 and CLAUDE.md's product-claims rules.
 from __future__ import annotations
 
 from backend.domain.errors import MissingContributionError
-from backend.domain.models import EpistemicType, ProviderType
+from backend.domain.models import EpistemicType, PlayerImpactProfile, ProviderType
 from backend.fixtures.historical_loader import HistoricalSeasonData
 from backend.providers.base import ContributionProvider
 
@@ -38,6 +38,21 @@ class HistoricalRaptorBenchmarkProvider(ContributionProvider):
                 f"in season {season_label!r}"
             )
         return value
+
+    def get_player_profile(self, player_id: str, season_label: str) -> PlayerImpactProfile:
+        if season_label != self._season_data.season.label:
+            raise MissingContributionError(
+                f"No RAPTOR benchmark loaded for season {season_label!r} "
+                f"(this provider was built for {self._season_data.season.label!r})"
+            )
+        offense = self._season_data.offense_values.get(player_id)
+        defense = self._season_data.defense_values.get(player_id)
+        if offense is None or defense is None:
+            raise MissingContributionError(
+                f"No historical RAPTOR offense/defense value for player {player_id!r} "
+                f"in season {season_label!r}"
+            )
+        return PlayerImpactProfile(offensive_impact=offense, defensive_impact=defense)
 
     def get_provider_type(self) -> ProviderType:
         return ProviderType.HISTORICAL_RAPTOR_BENCHMARK

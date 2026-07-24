@@ -12,6 +12,7 @@ import {
   type ContributionProviderChoice,
 } from "@/lib/url-state";
 import { ScenarioField, type ScenarioFieldOption } from "./ScenarioField";
+import { teamDisplayName } from "@/lib/nba-teams";
 import { ScenarioStatus } from "./ScenarioStatus";
 import { ScenarioSuccessPreview } from "./ScenarioSuccessPreview";
 import type { SubmissionState } from "./scenario-submission-state";
@@ -91,9 +92,22 @@ export function ScenarioForm() {
   const successViewModel =
     submission.status === "success" ? toScenarioViewModel(submission.response) : null;
 
+  // Design-review finding: editing a field after a result is shown didn't
+  // mark the still-displayed result as no-longer-matching-the-form. Compares
+  // the current form selection against the values the shown result actually
+  // came from (the response's own echoed team/season/players, and the
+  // separately-snapshotted submittedProvider — see its own comment above for
+  // why that can't be read off the response directly).
+  const resultStale =
+    successViewModel !== null &&
+    (selection.teamId !== successViewModel.teamId ||
+      selection.playerOutId !== successViewModel.playerOutId ||
+      selection.playerInId !== successViewModel.playerInId ||
+      selection.contributionProvider !== submittedProvider);
+
   const knownTeamIds = teams.data?.teams ?? [];
   const teamOptions = withSelectedOptionVisible(
-    knownTeamIds.map((teamId) => ({ value: teamId, label: teamId })),
+    knownTeamIds.map((teamId) => ({ value: teamId, label: `${teamId} — ${teamDisplayName(teamId)}` })),
     selection.teamId,
     [],
   );
@@ -116,7 +130,10 @@ export function ScenarioForm() {
   const playerInOptions = withSelectedOptionVisible(
     seasonPlayerList
       .filter((p) => !rosterPlayerIds.has(p.player_id))
-      .map((p) => ({ value: p.player_id, label: p.name })),
+      // Grouped by first letter — a native <optgroup> chunking of what would
+      // otherwise be one flat list of ~478 names (design-review finding:
+      // a "wall of options" with no grouping aid).
+      .map((p) => ({ value: p.player_id, label: p.name, group: p.name[0]?.toUpperCase() ?? "#" })),
     selection.playerInId,
     seasonPlayerList,
   );
@@ -145,6 +162,29 @@ export function ScenarioForm() {
     !rosterPlayerIds.has(selection.playerOutId);
 
   const loading = submission.status === "loading";
+  // Design-review finding: no "clear/start over" action existed anywhere —
+  // reloading the bare URL was the only way back to a blank form.
+  const hasAnythingToClear =
+    selection.teamId !== null ||
+    selection.playerOutId !== null ||
+    selection.playerInId !== null ||
+    selection.contributionProvider !== null ||
+    submission.status !== "idle";
+
+  function handleStartOver() {
+    // Season is left untouched — it's the one locked, always-set field, not
+    // something "start over" clears (there's nowhere else for it to go).
+    updateSelection({
+      teamId: null,
+      playerOutId: null,
+      playerInId: null,
+      contributionProvider: null,
+    });
+    abortRef.current?.abort();
+    setSubmission({ status: "idle" });
+    setSubmittedProvider(null);
+  }
+
   const complete = isCompleteSelection(selection);
   const submitDisabled =
     !complete ||
@@ -204,15 +244,20 @@ export function ScenarioForm() {
   return (
     <form onSubmit={handleSubmit} noValidate aria-describedby={STATUS_REGION_ID} className={styles.form}>
       <div className={styles.grid}>
-        <ScenarioField
-          id="season"
-          label="Season"
-          value={SEASON}
-          onChange={() => {}}
-          options={[{ value: SEASON, label: SEASON }]}
-          disabled
-          helpText="Only the 2014-15 season is available in this historical dataset."
-        />
+        {/* Static text, not a disabled <select> with one option — a disabled
+         *  select still looks clickable and invites a pointless click when
+         *  (as in this MVP) there is only ever one possible value. */}
+        <div className={styles.field}>
+          <span id="season-label" className={styles.label}>
+            Season
+          </span>
+          <p aria-labelledby="season-label" aria-describedby="season-help" className={styles.select}>
+            {SEASON}
+          </p>
+          <p id="season-help" className={styles.help}>
+            Only the 2014-15 season is available in this historical dataset.
+          </p>
+        </div>
         <ScenarioField
           id="team"
           label="Team"
@@ -296,9 +341,19 @@ export function ScenarioForm() {
         />
       </div>
 
-      <button type="submit" className={styles.submit} disabled={submitDisabled} aria-busy={loading}>
-        {loading ? "Calculating…" : "Run scenario"}
-      </button>
+      <div className={styles.editActions}>
+        <button type="submit" className={styles.submit} disabled={submitDisabled} aria-busy={loading}>
+          {loading ? "Calculating…" : "Run scenario"}
+        </button>
+        <button
+          type="button"
+          onClick={handleStartOver}
+          disabled={!hasAnythingToClear || loading}
+          className={styles.secondaryButton}
+        >
+          Start over
+        </button>
+      </div>
 
       <ScenarioStatus id={STATUS_REGION_ID} state={submission} />
 
@@ -310,6 +365,7 @@ export function ScenarioForm() {
           playerInLabel={playerLabel(successViewModel.playerInId)}
           playerLabel={playerLabel}
           contributionProvider={submittedProvider}
+          stale={resultStale}
         />
       ) : null}
     </form>

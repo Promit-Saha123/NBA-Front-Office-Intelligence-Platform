@@ -138,6 +138,21 @@
   padding: var(--space-3);
 }
 
+.stalePreview {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.staleNotice {
+  margin: 0 0 var(--space-2);
+  padding: 0.6rem var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
 .successGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
@@ -225,7 +240,9 @@
 
 .minutesInput {
   font: inherit;
-  width: 5rem;
+  /* Wide enough for a 3-digit-plus-decimal value ("100.0") without clipping —
+   * design review found values like "19.4771" visibly sliced at 5rem. */
+  width: 6.5rem;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: 6px;

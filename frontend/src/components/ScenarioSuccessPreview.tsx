@@ -1,7 +1,7 @@
 import type { ScenarioViewModel } from "@/lib/view-model";
 import type { ContributionProviderChoice } from "@/lib/url-state";
-import { RotationComparisonTable } from "./RotationComparisonTable";
 import { ExplanationFactorsList } from "./ExplanationFactorsList";
+import { TeamProfilePanel } from "./TeamProfilePanel";
 import { ScenarioDisclosuresPanel } from "./ScenarioDisclosuresPanel";
 import { EditableScenarioMinutes } from "./EditableScenarioMinutes";
 import styles from "./ScenarioForm.module.css";
@@ -19,6 +19,10 @@ export interface ScenarioSuccessPreviewProps {
   /** Threaded down to EditableScenarioMinutes for its own recalculate request —
    *  not derivable from the response (see that component's own prop comment). */
   contributionProvider: ContributionProviderChoice;
+  /** True when the current form selection has diverged from the values this
+   *  result was actually computed from (design-review finding: a stale result
+   *  stayed on screen with no visual cue after a field changed post-submit). */
+  stale: boolean;
 }
 
 /**
@@ -36,10 +40,20 @@ export function ScenarioSuccessPreview({
   playerInLabel,
   playerLabel,
   contributionProvider,
+  stale,
 }: ScenarioSuccessPreviewProps) {
   return (
-    <section className={styles.successPreview} aria-labelledby="results-heading">
+    <section
+      className={stale ? `${styles.successPreview} ${styles.stalePreview}` : styles.successPreview}
+      aria-labelledby="results-heading"
+    >
       <h2 id="results-heading">Scenario result</h2>
+      {stale ? (
+        <p className={styles.staleNotice} role="status">
+          Your selections have changed — this result no longer matches them. Run the scenario
+          again to update it.
+        </p>
+      ) : null}
       <dl className={styles.successGrid}>
         <div>
           <dt>Team</dt>
@@ -71,29 +85,21 @@ export function ScenarioSuccessPreview({
         </div>
       </dl>
 
-      <section className={styles.resultSection} aria-labelledby="rotation-heading">
-        <h3 id="rotation-heading">Rotation comparison</h3>
-        <RotationComparisonTable
-          rows={viewModel.rotationComparison}
-          outgoingPlayerId={viewModel.playerOutId}
-          incomingPlayerId={viewModel.playerInId}
-          playerLabel={playerLabel}
-        />
-        {viewModel.allocationRepairs.length > 0 ? (
-          <p className={styles.help}>Allocation adjustments: {viewModel.allocationRepairs.join("; ")}</p>
-        ) : null}
-      </section>
+      <EditableScenarioMinutes
+        viewModel={viewModel}
+        contributionProvider={contributionProvider}
+        playerLabel={playerLabel}
+      />
 
       <section className={styles.resultSection} aria-labelledby="factors-heading">
         <h3 id="factors-heading">What changed</h3>
         <ExplanationFactorsList factors={viewModel.explanationFactors} />
       </section>
 
-      <EditableScenarioMinutes
-        viewModel={viewModel}
-        contributionProvider={contributionProvider}
-        playerLabel={playerLabel}
-      />
+      <section className={styles.resultSection} aria-labelledby="team-profile-heading">
+        <h3 id="team-profile-heading">Team profile</h3>
+        <TeamProfilePanel categories={viewModel.teamProfile} />
+      </section>
 
       <ScenarioDisclosuresPanel disclosures={viewModel.disclosures} season={viewModel.season} />
     </section>

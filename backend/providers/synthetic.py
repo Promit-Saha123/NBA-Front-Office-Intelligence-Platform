@@ -12,7 +12,7 @@ import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from backend.domain.models import EpistemicType, ProviderType
+from backend.domain.models import EpistemicType, PlayerImpactProfile, ProviderType
 from backend.providers.base import ContributionProvider
 
 DEFAULT_ATTRIBUTION = (
@@ -58,6 +58,21 @@ class SyntheticContributionProvider(ContributionProvider):
             return self._explicit_values[key]
         fraction = _deterministic_unit_fraction(f"{self._config.seed}:{player_id}:{season_label}")
         return self._config.low + fraction * (self._config.high - self._config.low)
+
+    def get_player_profile(self, player_id: str, season_label: str) -> PlayerImpactProfile:
+        # Two distinctly-salted keys, not a split of the single contribution
+        # value — a genuinely separate deterministic dimension per key.
+        offense_fraction = _deterministic_unit_fraction(
+            f"{self._config.seed}:{player_id}:{season_label}:offense"
+        )
+        defense_fraction = _deterministic_unit_fraction(
+            f"{self._config.seed}:{player_id}:{season_label}:defense"
+        )
+        low, high = self._config.low, self._config.high
+        return PlayerImpactProfile(
+            offensive_impact=low + offense_fraction * (high - low),
+            defensive_impact=low + defense_fraction * (high - low),
+        )
 
     def get_provider_type(self) -> ProviderType:
         return ProviderType.SYNTHETIC

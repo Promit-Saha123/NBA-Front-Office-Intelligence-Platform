@@ -40,6 +40,7 @@ export interface ScenarioViewModel {
   scenarioContribution: number;
   contributionChange: number;
   explanationFactors: ScenarioResponse["explanation_factors"];
+  teamProfile: ScenarioResponse["team_profile"];
   allocationRepairs: string[];
   disclosures: ScenarioDisclosures;
 }
@@ -80,6 +81,7 @@ export function toScenarioViewModel(response: ScenarioResponse): ScenarioViewMod
     scenarioContribution: response.scenario_contribution,
     contributionChange: response.contribution_change,
     explanationFactors: response.explanation_factors,
+    teamProfile: response.team_profile,
     allocationRepairs: response.allocation_repairs,
     disclosures: {
       providerType: response.provider_type,

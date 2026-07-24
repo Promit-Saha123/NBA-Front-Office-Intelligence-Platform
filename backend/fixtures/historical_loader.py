@@ -57,7 +57,16 @@ _BY_TEAM_REQUIRED_COLUMNS = (
     "poss",
     "raptor_total",
 )
-_BY_PLAYER_REQUIRED_COLUMNS = ("player_id", "player_name", "season", "mp", "poss", "raptor_total")
+_BY_PLAYER_REQUIRED_COLUMNS = (
+    "player_id",
+    "player_name",
+    "season",
+    "mp",
+    "poss",
+    "raptor_total",
+    "raptor_offense",
+    "raptor_defense",
+)
 
 
 @dataclass(frozen=True)
@@ -68,6 +77,10 @@ class HistoricalSeasonData:
     rosters: Mapping[str, TeamRoster]
     player_seasons: Mapping[str, PlayerSeason]
     contribution_values: Mapping[str, float]
+    # raptor_offense / raptor_defense (decision 0010) — same pinned, already-
+    # licensed CSV as contribution_values, just two more of its columns.
+    offense_values: Mapping[str, float]
+    defense_values: Mapping[str, float]
     data_version: str
     attribution: str
     source_license: str
@@ -108,13 +121,17 @@ def load_historical_season(
     )
 
     rosters = _build_rosters(by_team, season)
-    player_seasons, contribution_values = _build_player_seasons(by_player, season)
+    player_seasons, contribution_values, offense_values, defense_values = _build_player_seasons(
+        by_player, season
+    )
 
     return HistoricalSeasonData(
         season=season,
         rosters=rosters,
         player_seasons=player_seasons,
         contribution_values=contribution_values,
+        offense_values=offense_values,
+        defense_values=defense_values,
         data_version=data_version,
         attribution=attribution,
         source_license=source_license,
@@ -183,11 +200,13 @@ def _build_rosters(by_team: pd.DataFrame, season: Season) -> dict[str, TeamRoste
 
 def _build_player_seasons(
     by_player: pd.DataFrame, season: Season
-) -> tuple[dict[str, PlayerSeason], dict[str, float]]:
+) -> tuple[dict[str, PlayerSeason], dict[str, float], dict[str, float], dict[str, float]]:
     season_rows = by_player[by_player["season"] == season.source_value].sort_values("player_id")
 
     player_seasons: dict[str, PlayerSeason] = {}
     contribution_values: dict[str, float] = {}
+    offense_values: dict[str, float] = {}
+    defense_values: dict[str, float] = {}
     for row in season_rows.itertuples(index=False):
         player_id = str(row.player_id)
         player = Player(internal_player_id=player_id, name=str(row.player_name))
@@ -198,4 +217,6 @@ def _build_player_seasons(
             possessions=_as_int(row.poss),
         )
         contribution_values[player_id] = _as_float(row.raptor_total)
-    return player_seasons, contribution_values
+        offense_values[player_id] = _as_float(row.raptor_offense)
+        defense_values[player_id] = _as_float(row.raptor_defense)
+    return player_seasons, contribution_values, offense_values, defense_values

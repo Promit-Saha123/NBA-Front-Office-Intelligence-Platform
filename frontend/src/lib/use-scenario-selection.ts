@@ -43,16 +43,33 @@ export function useScenarioSelection(): UseScenarioSelectionResult {
     [pathname, router],
   );
 
+  // Reads the *actual current browser URL* rather than the `selection` above,
+  // which is derived from React's `searchParams` and lags behind reality:
+  // router.replace()/push() update window.location synchronously (via the
+  // History API), but React's re-render (and thus a fresh `selection`) lands
+  // asynchronously. Two updateSelection() calls fired back-to-back — e.g. a
+  // team pick immediately followed by a player pick, before the first
+  // navigation's re-render has landed — would otherwise both read the same
+  // stale `selection` closure, and the second call's applySelectionUpdate()
+  // would silently drop the first call's change when it computes `next`.
+  // Confirmed via a real repro (design-review evidence, 2026-07-24) before
+  // this fix. Reading window.location.search directly sidesteps the race
+  // entirely, independent of React's render timing.
+  const currentSelection = useCallback(
+    (): ScenarioSelectionState => parseScenarioSelection(new URLSearchParams(window.location.search)),
+    [],
+  );
+
   const updateSelection = useCallback(
     (update: Partial<ScenarioSelectionState>) => {
-      navigate(applySelectionUpdate(selection, update), "replace");
+      navigate(applySelectionUpdate(currentSelection(), update), "replace");
     },
-    [selection, navigate],
+    [currentSelection, navigate],
   );
 
   const commitSelection = useCallback(() => {
-    navigate(selection, "push");
-  }, [selection, navigate]);
+    navigate(currentSelection(), "push");
+  }, [currentSelection, navigate]);
 
   return { selection, updateSelection, commitSelection };
 }

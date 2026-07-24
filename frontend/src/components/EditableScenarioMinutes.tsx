@@ -41,7 +41,12 @@ function defaultDraft(viewModel: ScenarioViewModel): Record<string, number> {
   );
   const draft: Record<string, number> = {};
   for (const playerId of scenarioPlayerIds(viewModel)) {
-    draft[playerId] = minutesByPlayer.get(playerId) ?? 0;
+    // Rounded to the same one-decimal precision the read-only table already
+    // displays (design-review finding: seeding at full float precision, e.g.
+    // "34.668" under a table showing "34.7" for the same player, read as a
+    // bug). This is a display-precision choice, not a scenario calculation.
+    const raw = minutesByPlayer.get(playerId) ?? 0;
+    draft[playerId] = Math.round(raw * 10) / 10;
   }
   return draft;
 }
@@ -53,12 +58,18 @@ function defaultDraft(viewModel: ScenarioViewModel): Record<string, number> {
  * default and edited results side by side. All arithmetic here is display-only
  * summation of already-fetched or already-submitted numbers — every real
  * calculation still happens server-side (POST /scenarios' manual_minutes path).
+ *
+ * Owns the *only* rotation-comparison table on the results page (design-review
+ * finding: a separate read-only table plus this component's own editable one
+ * duplicated the same rows/columns back to back). Editing toggles the single
+ * table's Scenario column between text and inputs rather than rendering two.
  */
 export function EditableScenarioMinutes({
   viewModel,
   contributionProvider,
   playerLabel,
 }: EditableScenarioMinutesProps) {
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, number>>(() => defaultDraft(viewModel));
   const [edited, setEdited] = useState<SubmissionState>({ status: "idle" });
 
@@ -74,6 +85,7 @@ export function EditableScenarioMinutes({
     setSeededKey(scenarioKey);
     setDraft(defaultDraft(viewModel));
     setEdited({ status: "idle" });
+    setEditing(false);
   }
 
   const totalMinutes = Number(viewModel.disclosures.minutesAssumptions.total_minutes);
@@ -88,6 +100,11 @@ export function EditableScenarioMinutes({
   function handleReset() {
     setDraft(defaultDraft(viewModel));
     setEdited({ status: "idle" });
+  }
+
+  function handleCancelEditing() {
+    handleReset();
+    setEditing(false);
   }
 
   async function handleRecalculate() {
@@ -124,46 +141,70 @@ export function EditableScenarioMinutes({
   const editedViewModel = edited.status === "success" ? toScenarioViewModel(edited.response) : null;
 
   return (
-    <section className={styles.resultSection} aria-labelledby="edit-minutes-heading">
-      <h3 id="edit-minutes-heading">Edit scenario minutes</h3>
-      <p className={styles.help}>
-        Adjust any player&apos;s scenario minutes below — the baseline column stays fixed to real
-        historical minutes. The total must equal exactly {totalMinutes.toFixed(1)} to recalculate;
-        this app never rebalances your entries automatically.
-      </p>
+    <section className={styles.resultSection} aria-labelledby="rotation-heading">
+      <h3 id="rotation-heading">Rotation comparison</h3>
       <RotationComparisonTable
         rows={viewModel.rotationComparison}
         outgoingPlayerId={viewModel.playerOutId}
         incomingPlayerId={viewModel.playerInId}
         playerLabel={playerLabel}
-        editableScenario
-        scenarioDraft={draft}
-        onScenarioMinutesChange={handleMinutesChange}
+        editableScenario={editing}
+        scenarioDraft={editing ? draft : undefined}
+        onScenarioMinutesChange={editing ? handleMinutesChange : undefined}
       />
-      {!totalValid ? (
-        <p className={styles.fieldError} role="alert">
-          Total is {draftTotal.toFixed(1)}, but must equal exactly {totalMinutes.toFixed(1)}.
-        </p>
+      {viewModel.allocationRepairs.length > 0 ? (
+        <p className={styles.help}>Allocation adjustments: {viewModel.allocationRepairs.join("; ")}</p>
       ) : null}
-      <div className={styles.editActions}>
+
+      {!editing ? (
         <button
           type="button"
-          onClick={handleReset}
-          disabled={loading}
+          onClick={() => setEditing(true)}
           className={styles.secondaryButton}
         >
-          Reset to default
+          Edit scenario minutes
         </button>
-        <button
-          type="button"
-          onClick={handleRecalculate}
-          disabled={!totalValid || loading}
-          aria-busy={loading}
-          className={styles.submit}
-        >
-          {loading ? "Recalculating…" : "Recalculate with these minutes"}
-        </button>
-      </div>
+      ) : (
+        <>
+          <p className={styles.help}>
+            Adjust any player&apos;s scenario minutes above — the baseline column stays fixed to
+            real historical minutes. The total must equal exactly {totalMinutes.toFixed(1)} to
+            recalculate; this app never rebalances your entries automatically.
+          </p>
+          {!totalValid ? (
+            <p className={styles.fieldError} role="alert">
+              Total is {draftTotal.toFixed(1)}, but must equal exactly {totalMinutes.toFixed(1)}.
+            </p>
+          ) : null}
+          <div className={styles.editActions}>
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={loading}
+              className={styles.secondaryButton}
+            >
+              Reset to default
+            </button>
+            <button
+              type="button"
+              onClick={handleRecalculate}
+              disabled={!totalValid || loading}
+              aria-busy={loading}
+              className={styles.submit}
+            >
+              {loading ? "Recalculating…" : "Recalculate with these minutes"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelEditing}
+              disabled={loading}
+              className={styles.secondaryButton}
+            >
+              Cancel editing
+            </button>
+          </div>
+        </>
+      )}
 
       {edited.status === "error" ? (
         <p className={styles.fieldError} role="alert">

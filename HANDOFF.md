@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-07-23
+**Last updated:** 2026-07-24
 
 ---
 
@@ -35,7 +35,31 @@ new `EditableScenarioMinutes.tsx` lets a user edit the rotation table,
 recalculate, reset, and see the default and edited results side by side.
 Backend: 121 tests (up from 98), ruff/mypy clean. Frontend: 103 tests (up
 from 97), typecheck/lint/build clean. See decision 0009 for the full design
-rationale. No database, no trained model exist.
+rationale. **Step 7 (team-profile interpretation, decision 0010) is now also
+done** (2026-07-24): `ContributionProvider` gained `get_player_profile()`
+returning offense/defense impact (RAPTOR's own `raptor_offense`/
+`raptor_defense` split — the full spec category list needs box-score data
+this project doesn't have; see decision 0010), minutes-weighted the same way
+contribution is, always labeled `descriptive_interpretation`, never feeding
+win/contribution math (locked in by a regression test). New frontend
+`TeamProfilePanel.tsx`. Backend: 139 tests (up from 121). **A full
+`/impeccable critique` design review also ran this session** (dual-agent:
+LLM design review + detector/browser evidence against the live app) —
+scored 30/40 (Good); the user asked for every finding to be fixed, starting
+with the highest-priority one. All of it is done: a real P1 bug (rapid
+field selections could silently drop an earlier one from the URL — root
+cause was `use-scenario-selection.ts` reading a stale React-derived
+`selection` instead of the live `window.location`, fixed and covered by a
+regression test that reproduces the original bug), the duplicate rotation
+table folded into one (editing now toggles the same table's Scenario column
+into inputs instead of rendering a second table), a precision mismatch
+between the read-only and editable views, narrow/clipping minutes inputs,
+un-flagged stale results after a post-submit field change, team/player
+recognition aids (full team names, player list grouped by first letter via
+native `<optgroup>`), a non-interactive Season display, and a "Start over"
+action. Frontend: 110 tests (up from 105). Full critique report at
+`.impeccable/critique/2026-07-24T00-56-10Z__frontend-src-app-page-tsx.md`.
+No database, no trained model exist.
 
 ## Portfolio Roadmap
 
@@ -151,8 +175,11 @@ same as any other visible/shared action.
 4. `docs/decisions/0009-editable-scenario-minutes.md` — the editable-minutes
    design (step 6): `manual_minutes` request field, complete-assignment
    validation, `INVALID_MANUAL_MINUTES`, `scenario_source` — **implemented**
-5. `docs/architecture/README.md` — maps the `backend/` code to the specs
-6. This file, for "what's next"
+5. `docs/decisions/0010-team-profile-interpretation.md` — the team-profile
+   design (step 7): why the full spec category list isn't computable with
+   this project's data, the offense/defense-only v1 scope — **implemented**
+6. `docs/architecture/README.md` — maps the `backend/` code to the specs
+7. This file, for "what's next"
 
 Skip 0001–0006 unless you need the historical reasoning for *why* — they're
 preserved as history, not the current plan.
@@ -171,7 +198,8 @@ preserved as history, not the current plan.
 | [0006](docs/decisions/0006-historical-pce-data-source.md) | Historical box-score source for PCE | Proposed, deferred by 0007 |
 | [0007](docs/decisions/0007-fully-free-historical-prototype.md) | **Fully free**: CC BY 4.0 data + synthetic only, PCE not a blocker | **Accepted, current plan** |
 | [0008](docs/decisions/0008-roster-lab-frontend-architecture.md) | Next.js Roster Lab frontend architecture (client component, generated+validated API types, URL-backed state) | Accepted, current |
-| [0009](docs/decisions/0009-editable-scenario-minutes.md) | Editable scenario minutes: full-rotation `manual_minutes` override, strictly validated, baseline read-only | **Accepted, current** |
+| [0009](docs/decisions/0009-editable-scenario-minutes.md) | Editable scenario minutes: full-rotation `manual_minutes` override, strictly validated, baseline read-only | Accepted, current |
+| [0010](docs/decisions/0010-team-profile-interpretation.md) | Team-profile interpretation: offensive/defensive impact only (RAPTOR offense/defense split), full spec category list deferred pending box-score data | **Accepted, current** |
 
 **The short version:** we wanted PCE (an internal, learned player-impact metric) but
 found no legally-usable free historical box-score source for it. Rather than pay or
@@ -522,66 +550,109 @@ Roadmap" above, which is the current, binding answer.
 
 ## Exact next task
 
-**Step 6 (editable minutes and sensitivity analysis) is done** (2026-07-23,
-decision 0009 — see that file for the full design rationale). Built via an
-`EnterPlanMode` plan approved by the user before implementation:
-`POST /scenarios` gained an optional `manual_minutes: dict[str, float]`
-request field — a *complete* assignment over the post-swap scenario roster
-(baseline stays permanently read-only), validated by a new pure
-`apply_manual_minutes()` in `backend/minutes/allocator.py` (exact key-set
-match, no negatives, no value over the 40-minute cap, sum must equal
-exactly 240 within the existing float tolerance — no partial maps, no
-silent rebalance, per scenario-engine.md §15). A new
-`InvalidManualMinutesError`/`INVALID_MANUAL_MINUTES` (422) is deliberately
-distinct from `InvalidRotationError` so the frontend can route it to inline
-table validation instead of a generic error banner. `minutes_assumptions`
-gained `"scenario_source": "heuristic" | "manual"`; `"editable"` flipped
-permanently to `true` (a capability flag, not a per-response fact). New
-frontend component `EditableScenarioMinutes.tsx` (composed into
-`ScenarioSuccessPreview.tsx`) lets a user edit the scenario rotation table,
-gates Recalculate on an exact-240 total (no auto-correct), Resets without a
-new request, and shows the default and edited results side by side. Backend
-121 tests (was 98), frontend 103 tests (was 97) — both quality gates clean.
+**Step 7 (team-profile interpretation) is done** (2026-07-24, decision
+0010 — see that file for the full design rationale, including the
+data-availability finding that reshaped its scope). `ContributionProvider`
+gained `get_player_profile()` returning `PlayerImpactProfile(offensive_impact,
+defensive_impact)`; `RosterScenarioResult`/`ScenarioResponse` gained
+`team_profile: tuple[TeamProfileCategory, ...]`, minutes-weighted the same
+way contribution is, always `EpistemicType.DESCRIPTIVE_INTERPRETATION`,
+never touching `contribution_change` (locked in by a regression test). New
+`TeamProfilePanel.tsx`. Backend 139 tests (was 121).
 
-One non-obvious fix needed during this slice, worth remembering: reseeding
-the editable draft when a new default result arrives was originally written
-as a `useEffect` that calls `setDraft`/`setEdited` synchronously in its
-body — this project's `react-hooks/set-state-in-effect` eslint rule (see
-the gotcha below) rejects that. The fix was React's own recommended
-"adjusting state during render" pattern (compare a stored `scenarioKey`
-against the current one and call `setState` directly in the render body,
-no `useEffect` at all) — see `EditableScenarioMinutes.tsx`'s own comment.
-If a future component needs to reset local state when a prop changes, use
-this pattern before reaching for `useEffect`.
+**A full `/impeccable critique` design review then ran** (dual-agent: an
+isolated LLM design-review sub-agent plus an isolated detector/browser-
+evidence sub-agent, both against the live app) — scored 30/40 (Good). Full
+report: `.impeccable/critique/2026-07-24T00-56-10Z__frontend-src-app-page-tsx.md`.
+The user asked for every finding fixed, priority-first. All done:
+- **A real P1 bug** (design-review evidence, not theoretical): rapid
+  successive field selections (e.g. team then immediately provider) could
+  silently drop the earlier one from the URL. Root cause:
+  `use-scenario-selection.ts`'s `updateSelection`/`commitSelection` computed
+  the next URL from the React-derived `selection` value, which lags behind
+  reality — `router.replace()`/`push()` update `window.location`
+  synchronously, but React's re-render (and thus a fresh `selection`) lands
+  asynchronously, so two calls fired before that re-render both read the
+  same stale closure. Fixed by reading `window.location.search` directly
+  instead. **Verified as a real regression, not a guess**: reverted the fix
+  and confirmed the new test (`frontend/src/lib/use-scenario-selection.test.ts`)
+  fails against the original code, then restored it and confirmed it
+  passes. A same-shaped test added directly to `ScenarioForm.test.tsx`
+  (using `fireEvent` between two selects) did *not* reproduce the bug —
+  Testing Library's `fireEvent` is individually `act()`-wrapped and
+  synchronously flushes between calls, unlike a real browser; the
+  discriminating test had to batch two hook calls inside one manual `act()`
+  block instead. If you need to test a similar React/router race again,
+  start with that pattern, not a component-level `fireEvent` sequence.
+- **P1**: the rotation table rendered twice (read-only + a separate
+  editable one) — folded into one; `EditableScenarioMinutes.tsx` now owns
+  the only `RotationComparisonTable` and toggles its Scenario column into
+  inputs via a new "Edit scenario minutes" button rather than rendering a
+  second table.
+- **P1**: the editable draft was seeded at full float precision while the
+  read-only view showed rounded values — draft now seeds at the same
+  `.toFixed(1)` precision.
+- **P2s**: minutes inputs widened (were clipping digits); a shown result is
+  now visually + textually marked stale the moment the form selection
+  diverges from what produced it (`ScenarioForm.tsx`'s `resultStale`); team
+  select now shows full franchise names (`frontend/src/lib/nba-teams.ts`,
+  a small static 2014-15-season lookup — presentational only, no
+  data-rules/licensing implication); the 478-player "Player to add" list is
+  now grouped by first letter via native `<optgroup>` (`ScenarioField.tsx`
+  gained optional `group` support) — chunking, not a new combobox/search
+  component, per decision 0008's native-controls-only rule.
+- **Minor**: the disabled-looking Season `<select>` (which could never have
+  a second option) replaced with static text; a "Start over" action added
+  (clears all fields + any shown result, leaves season alone); the
+  "Heuristic scenario profile..." label deduplicated from 3 occurrences to
+  2 (removed from `ScenarioDisclosuresPanel.tsx`, kept on
+  `ExplanationFactorsList`/`TeamProfilePanel` where it's most load-bearing).
+- **Explicitly not fixed** (flagged as false positives during synthesis,
+  not silently dropped): the detector's `overused-font`/`single-font`
+  findings — Operate mode's own guidance says one type family is correct
+  here, not a defect; don't "fix" this by adding a second typeface.
 
-**UI-005 is done** (2026-07-22, see `HANDOFF-roster-lab-issues.md`'s UI-005
-entry for the full account) — carried over from the prior session, still
-current. One item from that pass remains deliberately **deferred, not
-fixed**: `ScenarioForm.tsx`'s ~60 lines of inline validation/derivation
-logic should eventually move to a pure module (`deriveScenarioFormState()`),
-matching the `url-state.ts` pattern — behavior is correct and tested today,
-not urgent on its own. `/impeccable init` is still pending — it's
-interactive and only the user can run it; ask them to, then follow with
-`critique`/`audit`/`polish`. `/review`/`/code-review` are still not usable
-(no PR; `code-review` still not in the skill listing).
+Frontend: 110 tests (was 103, then 105 after step 7 — net +5 across both
+pieces of work today). All four quality gates (backend ruff/mypy/pytest,
+frontend typecheck/lint/test/build) clean as of this write-up.
 
-With steps 1-6 of CLAUDE.md's "Development Priority" list complete, **the
-next item is step 7: team-profile interpretation** (descriptive
-interpretation of a team's calculated scenario differences — see CLAUDE.md's
-"Product Claims" for the label distinctions to preserve: model prediction /
-heuristic assumption / deterministic calculation / descriptive
-interpretation). Read `docs/project-specification.md` and whatever section
-of `docs/scenario-engine.md` covers team-profile output before starting;
-none of this is designed yet, so expect another `EnterPlanMode` pass before
-writing code, same as step 6.
+Also note: `npx impeccable update` ran this session (user-approved),
+upgrading the installed skill from v3.9.1 to v4.0.2 — it applied
+**immediately**, not "next session" as its own prompt claimed, which
+briefly desynced the in-context skill instructions (v3.9.1, already loaded)
+from the on-disk files (v4.0.2) mid-task. Re-read the actual on-disk
+`SKILL.md` if this happens again rather than trusting a stale in-context
+copy. `.claude/skills/impeccable/` shows as modified/added/deleted in `git
+status` because of this update — decide whether to commit it alongside or
+separately from the feature work; it's tooling, not product code.
 
-**The Council's open question is resolved — see "Portfolio Roadmap" above:
-not deploying for now.** Don't re-raise it or start deployment/hosting work
-on your own initiative; stay focused on local development (step 7 and
-beyond) until the user brings deployment up again.
+**UI-005 remains done** (2026-07-22, see `HANDOFF-roster-lab-issues.md`'s
+UI-005 entry). One item from that pass is still deliberately **deferred,
+not fixed** — and is now more relevant, not less, since this session added
+*more* inline logic to the same file: `ScenarioForm.tsx`'s validation/
+derivation logic (now also including `hasAnythingToClear`, `handleStartOver`,
+`resultStale`) should move to a pure module
+(`deriveScenarioFormState()`), matching the `url-state.ts` pattern.
+Behavior is correct and tested throughout, so still not urgent on its own,
+but the file keeps growing — worth doing deliberately next time it's
+touched rather than deferring again. `/review`/`/code-review` are still
+not usable (no PR; `code-review` still not in the skill listing).
+
+With steps 1-7 of CLAUDE.md's "Development Priority" list complete, **the
+next item is step 8: supporting player and team pages; public historical
+deployment** (per CLAUDE.md's list) — though the "Portfolio Roadmap" below
+still governs deployment specifically: **not deploying for now**, so treat
+step 8 as "supporting player/team pages" only until the user raises
+deployment again. None of this is designed yet — expect another
+`EnterPlanMode` pass before writing code, same as steps 6 and 7.
+
+**Dev servers may still be running** from this session's design-review
+evidence-gathering (`uv run uvicorn backend.api.app:app --port 8000` +
+`pnpm dev` in `frontend/`, both started in the background) — check before
+assuming a clean slate, and stop them if you don't need them.
 
 **Run `git status` before trusting any file list in this document** — it
-reflects state as of 2026-07-23 but may have drifted.
+reflects state as of 2026-07-24 but may have drifted.
 
 **Known follow-up, not yet scheduled:** fix `commitSelection()`'s
 `router.push()` never actually creating a back-navigable history entry
@@ -615,9 +686,11 @@ uv run mypy
 uv run pytest -q
 ```
 
-All three should pass clean (**121 tests**, up from 98 — step 6's
-`apply_manual_minutes`/`manual_minutes` tests added across
-`tests/test_minutes_allocator.py`, `tests/test_scenario_service.py`, and
+All three should pass clean (**139 tests**, up from 98 — step 6's
+`apply_manual_minutes`/`manual_minutes` tests plus step 7's
+`get_player_profile`/`team_profile` tests, across
+`tests/test_minutes_allocator.py`, `tests/test_contribution_providers.py`,
+`tests/test_historical_loader.py`, `tests/test_scenario_service.py`, and
 `tests/test_api_scenarios.py`). If they don't, something changed since this
 file was last updated — trust the code over this document.
 
@@ -625,15 +698,15 @@ file was last updated — trust the code over this document.
 cd frontend
 pnpm typecheck
 pnpm lint
-pnpm test        # hermetic, 103 tests, no uv/Python required
+pnpm test        # hermetic, 110 tests, no uv/Python required
 pnpm build
 ```
 
-All four should pass clean. `pnpm test:codegen` (3 more tests, 106 total)
+All four should pass clean. `pnpm test:codegen` (3 more tests, 113 total)
 additionally requires `uv`/Python on PATH — see the pnpm-on-PATH gotcha
 above if `pnpm` itself isn't found. `pnpm run check:api-fresh` should also
 report the generated API contract as up to date (it's regenerated as part
-of step 6's `manual_minutes` field — see decision 0009).
+of step 7's `team_profile` field — see decision 0010).
 
 **Real browser smoke test done this session** (superseding UI-003's
 curl-only verification): `uv run uvicorn backend.api.app:app --port 8000`

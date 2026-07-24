@@ -2,6 +2,7 @@
 the pinned 2014-15 snapshot for integration coverage. No live endpoints."""
 
 import dataclasses
+import math
 
 import pytest
 
@@ -18,6 +19,7 @@ from backend.domain.errors import (
 from backend.domain.models import (
     EpistemicType,
     Player,
+    PlayerImpactProfile,
     PlayerSeason,
     ProviderType,
     RosterMember,
@@ -28,6 +30,7 @@ from backend.domain.models import (
 )
 from backend.fixtures.historical_loader import HistoricalSeasonData, load_historical_season
 from backend.minutes.allocator import MinutesAllocationConfig
+from backend.providers.base import ContributionProvider
 from backend.providers.raptor_benchmark import HistoricalRaptorBenchmarkProvider
 from backend.providers.synthetic import SyntheticContributionConfig, SyntheticContributionProvider
 from backend.scenario.service import RosterScenarioService
@@ -78,6 +81,11 @@ def _synthetic_season_data(contribution_values: dict[str, float]) -> HistoricalS
         rosters=rosters,
         player_seasons=player_seasons,
         contribution_values=contribution_values,
+        # Not consulted by SyntheticContributionProvider.get_player_profile()
+        # (it never reads HistoricalSeasonData) — these tests all use the
+        # synthetic provider, so zero-filled maps are enough to construct.
+        offense_values=dict.fromkeys(all_ids, 0.0),
+        defense_values=dict.fromkeys(all_ids, 0.0),
         data_version="synthetic-fixtures-v1",
         attribution="Synthetic test fixture",
         source_license="N/A (test fixture)",
@@ -89,6 +97,40 @@ def _synthetic_provider(values: dict[str, float]) -> SyntheticContributionProvid
     return SyntheticContributionProvider(
         SyntheticContributionConfig(data_version="synthetic-fixtures-v1"), explicit_values=explicit
     )
+
+
+class _FixedProfileProvider(ContributionProvider):
+    """Wraps a real provider but returns explicit, hand-verifiable profile
+    values — SyntheticContributionProvider only supports explicit
+    *contribution* overrides, not profile overrides, so team-profile tests
+    that need exact/matching offense-defense numbers need this instead."""
+
+    def __init__(
+        self, inner: ContributionProvider, profiles: dict[str, PlayerImpactProfile]
+    ) -> None:
+        self._inner = inner
+        self._profiles = profiles
+
+    def get_player_contribution(self, player_id: str, season_label: str) -> float:
+        return self._inner.get_player_contribution(player_id, season_label)
+
+    def get_player_profile(self, player_id: str, season_label: str) -> PlayerImpactProfile:
+        return self._profiles[player_id]
+
+    def get_provider_type(self) -> ProviderType:
+        return self._inner.get_provider_type()
+
+    def get_provider_version(self) -> str:
+        return self._inner.get_provider_version()
+
+    def get_data_version(self) -> str:
+        return self._inner.get_data_version()
+
+    def get_epistemic_type(self) -> EpistemicType:
+        return self._inner.get_epistemic_type()
+
+    def get_attribution(self) -> str:
+        return self._inner.get_attribution()
 
 
 # --- Hand-calculated synthetic tests ---
@@ -349,6 +391,187 @@ def test_raptor_specific_fields_do_not_leak_into_response() -> None:
     assert result_field_names.isdisjoint(forbidden)
     rotation_field_names = {f.name for f in dataclasses.fields(result.scenario_rotation[0])}
     assert rotation_field_names.isdisjoint(forbidden)
+    profile_field_names = {f.name for f in dataclasses.fields(result.team_profile[0])}
+    assert profile_field_names.isdisjoint(forbidden)
+
+
+# --- Team profile (decision 0010) ---
+
+_PROFILES = {
+    "a1": PlayerImpactProfile(offensive_impact=4.0, defensive_impact=-2.0),
+    "a2": PlayerImpactProfile(offensive_impact=1.0, defensive_impact=1.0),
+    "a3": PlayerImpactProfile(offensive_impact=0.0, defensive_impact=0.0),
+    "b1": PlayerImpactProfile(offensive_impact=6.0, defensive_impact=-1.0),
+}
+
+
+def _fixed_profile_scenario() -> tuple[RosterScenarioService, _FixedProfileProvider]:
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _FixedProfileProvider(_synthetic_provider(values), _PROFILES)
+    return service, provider
+
+
+def test_team_profile_formula_matches_minutes_weighted_aggregation() -> None:
+    service, provider = _fixed_profile_scenario()
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result = service.build_scenario(request, provider)
+    total_minutes = float(result.minutes_assumptions["total_minutes"])
+
+    offense_by_category = {c.category: c for c in result.team_profile}["offensive_impact"]
+    recomputed_baseline_offense = sum(
+        _PROFILES[e.player_id].offensive_impact * (e.minutes / total_minutes)
+        for e in result.baseline_rotation
+    )
+    recomputed_scenario_offense = sum(
+        _PROFILES[e.player_id].offensive_impact * (e.minutes / total_minutes)
+        for e in result.scenario_rotation
+        if e.minutes > 0
+    )
+    assert offense_by_category.baseline_value == pytest.approx(recomputed_baseline_offense)
+    assert offense_by_category.scenario_value == pytest.approx(recomputed_scenario_offense)
+
+
+def test_team_profile_uses_same_minutes_weighting_as_contribution() -> None:
+    # Same rotation entries/minutes drive both — changing only the profile
+    # provider's offense/defense values must never move baseline/scenario
+    # contribution, since they're computed from wholly separate value maps.
+    service, provider = _fixed_profile_scenario()
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result_with_profile = service.build_scenario(request, provider)
+    result_without_profile_wrapper = service.build_scenario(
+        request, _synthetic_provider({"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0})
+    )
+    assert result_with_profile.baseline_contribution == pytest.approx(
+        result_without_profile_wrapper.baseline_contribution
+    )
+    assert result_with_profile.scenario_contribution == pytest.approx(
+        result_without_profile_wrapper.scenario_contribution
+    )
+
+
+def test_team_profile_reports_raw_values_no_normalization() -> None:
+    # v1 does no league normalization; raw offense/defense values are
+    # minutes-weighted and summed as-is — an honest, labeled simplicity
+    # choice, not a gap. A single-player, single-minutes-share case makes
+    # the "no rescaling happened" claim directly checkable.
+    values = {"a1": 1.0, "a2": 1.0, "a3": 1.0, "b1": 1.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = _FixedProfileProvider(_synthetic_provider(values), _PROFILES)
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result = service.build_scenario(request, provider)
+    total_minutes = float(result.minutes_assumptions["total_minutes"])
+    offense = {c.category: c for c in result.team_profile}["offensive_impact"]
+    expected_scenario = sum(
+        _PROFILES[e.player_id].offensive_impact * (e.minutes / total_minutes)
+        for e in result.scenario_rotation
+        if e.minutes > 0
+    )
+    assert offense.scenario_value == pytest.approx(expected_scenario)
+
+
+def test_team_profile_baseline_scenario_difference() -> None:
+    service, provider = _fixed_profile_scenario()
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result = service.build_scenario(request, provider)
+    for category in result.team_profile:
+        assert category.change == pytest.approx(category.scenario_value - category.baseline_value)
+
+
+def test_team_profile_missing_data_raises_missing_contribution_error() -> None:
+    values = {"a1": 1.0, "a2": 1.0, "a3": 1.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    provider = HistoricalRaptorBenchmarkProvider(season_data)
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    with pytest.raises(MissingContributionError):
+        service.build_scenario(request, provider)
+
+
+def test_team_profile_zero_change_when_swap_is_value_neutral() -> None:
+    # a3 and b1 share the exact same profile -> swapping them must produce
+    # zero change in both categories.
+    values = {"a1": 10.0, "a2": 5.0, "a3": 3.0, "b1": 3.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    profiles = {**_PROFILES, "b1": _PROFILES["a3"]}
+    provider = _FixedProfileProvider(_synthetic_provider(values), profiles)
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result = service.build_scenario(request, provider)
+    for category in result.team_profile:
+        assert category.change == pytest.approx(0.0, abs=1e-9)
+        assert category.direction == "no_change"
+
+
+def test_team_profile_output_is_always_a_finite_float() -> None:
+    # No normalization -> no fixed range to assert beyond "finite" (contrast
+    # with a percentile/index approach, which would have a defined range).
+    service, provider = _fixed_profile_scenario()
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result = service.build_scenario(request, provider)
+    for category in result.team_profile:
+        assert math.isfinite(category.baseline_value)
+        assert math.isfinite(category.scenario_value)
+        assert math.isfinite(category.change)
+
+
+def test_team_profile_epistemic_type_is_always_descriptive_interpretation() -> None:
+    service, provider = _fixed_profile_scenario()
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+    result = service.build_scenario(request, provider)
+    assert all(
+        c.epistemic_type == EpistemicType.DESCRIPTIVE_INTERPRETATION for c in result.team_profile
+    )
+
+
+def test_team_profile_never_influences_contribution_or_explanation_factors() -> None:
+    # Regression test locking in the parallel-computation claim: two
+    # scenarios differing only in the profile provider's offense/defense
+    # values (contribution values held constant) must produce bit-identical
+    # contribution_change/baseline_contribution/scenario_contribution/
+    # explanation_factors, while team_profile itself differs.
+    values = {"a1": 10.0, "a2": 5.0, "a3": 0.0, "b1": 20.0}
+    season_data = _synthetic_season_data(values)
+    service = RosterScenarioService(season_data, _SYNTHETIC_MINUTES_CONFIG)
+    request = RosterScenarioRequest(
+        team_id="TMA", season_label=SEASON_LABEL, player_out_id="a3", player_in_id="b1"
+    )
+
+    provider_a = _FixedProfileProvider(_synthetic_provider(values), _PROFILES)
+    other_profiles = {
+        pid: PlayerImpactProfile(
+            offensive_impact=-p.offensive_impact, defensive_impact=-p.defensive_impact
+        )
+        for pid, p in _PROFILES.items()
+    }
+    provider_b = _FixedProfileProvider(_synthetic_provider(values), other_profiles)
+
+    result_a = service.build_scenario(request, provider_a)
+    result_b = service.build_scenario(request, provider_b)
+
+    assert result_a.contribution_change == result_b.contribution_change
+    assert result_a.baseline_contribution == result_b.baseline_contribution
+    assert result_a.scenario_contribution == result_b.scenario_contribution
+    assert result_a.explanation_factors == result_b.explanation_factors
+    assert result_a.team_profile != result_b.team_profile
 
 
 # --- Integration test against the real pinned 2014-15 snapshot ---

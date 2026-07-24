@@ -3,7 +3,7 @@
 import pytest
 
 from backend.domain.errors import MissingContributionError
-from backend.domain.models import EpistemicType, ProviderType
+from backend.domain.models import EpistemicType, PlayerImpactProfile, ProviderType
 from backend.fixtures.historical_loader import HistoricalSeasonData, load_historical_season
 from backend.providers.base import ContributionProvider
 from backend.providers.raptor_benchmark import HistoricalRaptorBenchmarkProvider
@@ -121,3 +121,52 @@ def test_no_automatic_fallback_from_historical_to_synthetic(
     # provider; a missing value must raise, never silently substitute.
     with pytest.raises(MissingContributionError):
         raptor_provider.get_player_contribution("not-a-real-player", SEASON_LABEL)
+
+
+# --- Team-profile (decision 0010): get_player_profile() ---
+
+
+def test_historical_provider_profile_matches_pinned_snapshot_exactly(
+    raptor_provider: HistoricalRaptorBenchmarkProvider,
+) -> None:
+    # afflaar01's season-2015 raptor_offense/raptor_defense, verified directly against the CSV.
+    profile = raptor_provider.get_player_profile("afflaar01", SEASON_LABEL)
+    assert isinstance(profile, PlayerImpactProfile)
+    assert profile.offensive_impact == pytest.approx(-0.985917143, abs=1e-6)
+    assert profile.defensive_impact == pytest.approx(-1.673151448, abs=1e-6)
+
+
+def test_historical_provider_profile_missing_contribution_fails_explicitly(
+    raptor_provider: HistoricalRaptorBenchmarkProvider,
+) -> None:
+    with pytest.raises(MissingContributionError):
+        raptor_provider.get_player_profile("not-a-real-player", SEASON_LABEL)
+
+
+def test_historical_provider_profile_unsupported_season_fails_explicitly(
+    raptor_provider: HistoricalRaptorBenchmarkProvider,
+) -> None:
+    with pytest.raises(MissingContributionError):
+        raptor_provider.get_player_profile("afflaar01", "2013-14")
+
+
+def test_synthetic_provider_profile_deterministic() -> None:
+    provider_a = SyntheticContributionProvider(SyntheticContributionConfig(seed=42))
+    provider_b = SyntheticContributionProvider(SyntheticContributionConfig(seed=42))
+    assert provider_a.get_player_profile("anyone", SEASON_LABEL) == provider_b.get_player_profile(
+        "anyone", SEASON_LABEL
+    )
+
+
+def test_synthetic_provider_profile_offense_and_defense_are_not_the_same_value() -> None:
+    # Guards against accidentally splitting one hashed value in half instead
+    # of using two independently-salted keys.
+    provider = SyntheticContributionProvider()
+    profile = provider.get_player_profile("demo-player", SEASON_LABEL)
+    assert profile.offensive_impact != profile.defensive_impact
+
+
+def test_synthetic_provider_profile_never_raises_missing_contribution() -> None:
+    provider = SyntheticContributionProvider()
+    profile = provider.get_player_profile("no-such-player", "3000-01")
+    assert isinstance(profile, PlayerImpactProfile)

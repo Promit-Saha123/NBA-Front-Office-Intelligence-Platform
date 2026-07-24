@@ -199,6 +199,8 @@ export interface components {
             season: string;
             /** Team Id */
             team_id: string;
+            /** Team Profile */
+            team_profile: components["schemas"]["TeamProfileCategoryResponse"][];
         };
         /** SeasonPlayersResponse */
         SeasonPlayersResponse: {
@@ -206,6 +208,20 @@ export interface components {
             players: components["schemas"]["PlayerSummaryResponse"][];
             /** Season */
             season: string;
+        };
+        /** TeamProfileCategoryResponse */
+        TeamProfileCategoryResponse: {
+            /** Baseline Value */
+            baseline_value: number;
+            /** Category */
+            category: string;
+            /** Change */
+            change: number;
+            /** Direction */
+            direction: string;
+            epistemic_type: components["schemas"]["EpistemicType"];
+            /** Scenario Value */
+            scenario_value: number;
         };
         /** TeamRosterResponse */
         TeamRosterResponse: {

@@ -70,6 +70,13 @@ def test_deterministic_identity_mapping() -> None:
     assert first.rosters["GSW"] == second.rosters["GSW"]
 
 
+def test_offense_and_defense_values_loaded() -> None:
+    # afflaar01's season-2015 raptor_offense/raptor_defense, verified directly against the CSV.
+    season_data = load_historical_season("2014-15")
+    assert season_data.offense_values["afflaar01"] == pytest.approx(-0.985917143, abs=1e-6)
+    assert season_data.defense_values["afflaar01"] == pytest.approx(-1.673151448, abs=1e-6)
+
+
 def test_expected_data_version_is_enforced(tmp_path: Path) -> None:
     _write_minimal_snapshot(tmp_path, data_version="some-other-data-version")
     with pytest.raises(IncompatibleDataVersionError):
@@ -92,6 +99,18 @@ def test_missing_required_columns_fail_clearly(tmp_path: Path) -> None:
         load_historical_season("2014-15", snapshot_dir=tmp_path)
 
 
+def test_missing_offense_column_fails_clearly(tmp_path: Path) -> None:
+    _write_minimal_snapshot(tmp_path, drop_column="raptor_offense")
+    with pytest.raises(MissingRequiredColumnError):
+        load_historical_season("2014-15", snapshot_dir=tmp_path)
+
+
+def test_missing_defense_column_fails_clearly(tmp_path: Path) -> None:
+    _write_minimal_snapshot(tmp_path, drop_column="raptor_defense")
+    with pytest.raises(MissingRequiredColumnError):
+        load_historical_season("2014-15", snapshot_dir=tmp_path)
+
+
 def _write_minimal_snapshot(
     directory: Path,
     data_version: str = EXPECTED_RAPTOR_DATA_VERSION,
@@ -107,7 +126,10 @@ def _write_minimal_snapshot(
     by_team_columns = [
         "player_id", "player_name", "season", "season_type", "team", "mp", "poss", "raptor_total",
     ]  # fmt: skip
-    by_player_columns = ["player_id", "player_name", "season", "mp", "poss", "raptor_total"]
+    by_player_columns = [
+        "player_id", "player_name", "season", "mp", "poss",
+        "raptor_total", "raptor_offense", "raptor_defense",
+    ]  # fmt: skip
     if drop_column is not None:
         by_team_columns = [c for c in by_team_columns if c != drop_column]
         by_player_columns = [c for c in by_player_columns if c != drop_column]

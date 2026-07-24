@@ -60,3 +60,11 @@ and re-evaluation triggers.
   user input from an automatic-allocator failure; a new
   `EditableScenarioMinutes.tsx` frontend component shows default and edited
   results side by side (2026-07-23).
+* [0010 — Team-Profile Interpretation](0010-team-profile-interpretation.md) —
+  **Accepted**: a narrower, honest v1 of step 7 — offensive/defensive impact
+  only, from RAPTOR's own `raptor_offense`/`raptor_defense` split, since the
+  full spec's category list (shooting, playmaking, rebounding, etc.) needs
+  box-score data this project doesn't have; `ContributionProvider` gains
+  `get_player_profile()`; a new `TeamProfilePanel.tsx` renders it, always
+  labeled `descriptive_interpretation` and never feeding win/contribution
+  math (2026-07-23).

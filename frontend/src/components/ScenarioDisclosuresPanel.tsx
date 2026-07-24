@@ -80,8 +80,11 @@ export function ScenarioDisclosuresPanel({ disclosures, season }: ScenarioDisclo
       </div>
 
       <p className={styles.help}>
+        {/* The "heuristic scenario profile" label itself is already stated once per
+         *  factor/profile list (ExplanationFactorsList, TeamProfilePanel) — not repeated
+         *  here too, to avoid the same sentence appearing three times on one page. */}
         Scenario results combine historical benchmark values, heuristic rotation assumptions, and
-        deterministic calculations. Heuristic scenario profile, not a validated causal fit model.
+        deterministic calculations.
       </p>
       <p className={styles.help}>
         Supported seasons: 2014-15. Player benchmarks end with the 2021-22 season; team game

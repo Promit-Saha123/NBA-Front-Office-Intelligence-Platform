@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from backend.domain.models import EpistemicType, ProviderType
+from backend.domain.models import EpistemicType, PlayerImpactProfile, ProviderType
 
 
 class ContributionProvider(ABC):
@@ -20,6 +20,15 @@ class ContributionProvider(ABC):
 
         Raises MissingContributionError if no value is available. Must never
         silently substitute a value from a different provider.
+        """
+
+    @abstractmethod
+    def get_player_profile(self, player_id: str, season_label: str) -> PlayerImpactProfile:
+        """Return the offense/defense impact split for a player-season (decision 0010).
+
+        Raises MissingContributionError if no value is available — same
+        failure mode and error type as get_player_contribution, since both
+        read the same underlying player-season record.
         """
 
     @abstractmethod
