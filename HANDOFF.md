@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 
 ---
 
@@ -397,6 +397,31 @@ Ruff and mypy both clean.
 
 ## Known gotchas / non-obvious facts worth remembering
 
+- **"Parallel worktrees" isn't always true — check `git worktree list`, not
+  just `git branch -a`.** Discovered 2026-07-25: at the time this session
+  started, `step8-backend-detail-endpoints` really was isolated in its own
+  worktree (`C:/Users/sahap/OneDrive/Desktop/nba-step8-backend`), but a
+  second concurrent session doing step 8's *frontend* pages
+  (`TeamDetailView.tsx`, `PlayerDetailView.tsx`, `detail-api.ts`, etc.) was
+  working directly in **this same primary checkout**, with its own uncommitted
+  changes to shared files (`backend/api/app.py`, `schemas.py`, `lookups.py`,
+  `openapi.json`, `tests/test_api_lookups.py`,
+  `docs/architecture/README.md`, and even `EditableScenarioMinutes.tsx`/
+  `RotationComparisonTable.tsx`/`ScenarioSuccessPreview.tsx`) sitting
+  uncommitted in the working tree the whole time — never actually checked
+  out on its own `step8-frontend-pages` branch here. A plain `git stash`
+  run in this session (to compare a test failure against a clean tree)
+  swept up *all* of it, not just this session's own 4 files — recovered via
+  `git stash show --stat` + per-file `git checkout stash@{0} -- <path>`,
+  with `docs/architecture/README.md` specifically left at its current
+  (newer, already-re-edited-since) working-tree version rather than
+  overwritten with the stashed copy. **Lesson: in this repo, never run a
+  blanket `git stash`/`git reset --hard`/`git clean` without first checking
+  `git worktree list` and `git status` for files outside your own task
+  scope — a shared primary checkout can be silently carrying another
+  session's uncommitted work.** Commit with an explicit file list
+  (`git add <specific paths>`), never `git add -A`/`git add .`, whenever
+  other sessions might be active.
 - **Real browser automation is available in this environment without adding
   a project dependency**: Microsoft Edge is already installed
   (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`), and
@@ -627,16 +652,20 @@ status` because of this update — decide whether to commit it alongside or
 separately from the feature work; it's tooling, not product code.
 
 **UI-005 remains done** (2026-07-22, see `HANDOFF-roster-lab-issues.md`'s
-UI-005 entry). One item from that pass is still deliberately **deferred,
-not fixed** — and is now more relevant, not less, since this session added
-*more* inline logic to the same file: `ScenarioForm.tsx`'s validation/
-derivation logic (now also including `hasAnythingToClear`, `handleStartOver`,
-`resultStale`) should move to a pure module
-(`deriveScenarioFormState()`), matching the `url-state.ts` pattern.
-Behavior is correct and tested throughout, so still not urgent on its own,
-but the file keeps growing — worth doing deliberately next time it's
-touched rather than deferring again. `/review`/`/code-review` are still
-not usable (no PR; `code-review` still not in the skill listing).
+UI-005 entry). One item from that pass — moving `ScenarioForm.tsx`'s
+inline validation/derivation logic into a pure module — is now **resolved**
+(2026-07-25, branch `frontend-tech-debt`): `frontend/src/lib/
+scenario-form-validation.ts` (`deriveScenarioFormState()`) now owns
+`teamNotFoundInvalid`, `samePlayerInvalid`, `playerInAlreadyOnRosterInvalid`,
+`playerOutNotOnRosterInvalid`, `hasAnythingToClear`, `resultStale`, and
+`submitDisabled`, matching the `url-state.ts` pure-module pattern — plain
+data in, plain data out, independently unit-tested
+(`scenario-form-validation.test.ts`). Deliberately excluded: the dropdown-
+option-list building (`teamOptions`/`playerOutOptions`/`playerInOptions`,
+`withSelectedOptionVisible`) stays in `ScenarioForm.tsx` — it produces
+labeled `ScenarioFieldOption[]` for display, which is presentational, not
+validation. `/review`/`/code-review` are still not usable (no PR yet at
+the time this was written; `code-review` still not in the skill listing).
 
 With steps 1-7 of CLAUDE.md's "Development Priority" list complete, **the
 next item is step 8: supporting player and team pages; public historical
@@ -654,14 +683,26 @@ assuming a clean slate, and stop them if you don't need them.
 **Run `git status` before trusting any file list in this document** — it
 reflects state as of 2026-07-24 but may have drifted.
 
-**Known follow-up, not yet scheduled:** fix `commitSelection()`'s
-`router.push()` never actually creating a back-navigable history entry
-(confirmed via real browser testing this session — see ADR 0008's "Local
-Run and Deployment-Config Readiness" section for the full root cause).
-Needs a deliberate design decision (how to distinguish "committed" from
-"editing" state in the URL without inventing a new query param), not a
-quick patch — scope it properly rather than hacking around it under time
-pressure next time it's picked up.
+**Resolved** (2026-07-25, branch `frontend-tech-debt`): `commitSelection()`'s
+`router.push()` never actually created a back-navigable history entry (ADR
+0008's "Local Run and Deployment-Config Readiness" section has the original
+finding). Root cause confirmed by reading the installed Next.js 16.2.10
+source directly (`node_modules/next/dist/client/components/app-router.js`'s
+`HistoryUpdater`): Next silently downgrades a `push()` to a `replaceState()`
+whenever the target URL (including hash) is byte-identical to
+`window.location` — every `updateSelection()` edit already `replace()`s the
+URL to match the in-progress selection, so `commitSelection()`'s `push()`
+target was always already-identical by the time it fired. Fix:
+`use-scenario-selection.ts`'s `commitSelection()` now appends a monotonic
+`#committed-N` hash fragment (a `useRef` counter) to guarantee its push
+target always differs from the current URL. The hash is invisible to
+`useSearchParams()`/`parseScenarioSelection()` (query-only) and self-clears
+on the next edit; it *is* visible in the address bar right after a
+submission until then — a same-tick follow-up `replace()` to hide it was
+considered and rejected (see the fix's own code comment: Next's action
+queue discards a still-pending `push()` if a `replace()` is dispatched
+before it resolves, which would silently reintroduce the exact bug).
+Regression-tested in `use-scenario-selection.test.ts`.
 
 Read `docs/decisions/0008-roster-lab-frontend-architecture.md`'s "UI-001
 Implementation Clarifications," "UI-002 Implementation Notes," and "UI-003

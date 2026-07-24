@@ -4,11 +4,11 @@
  * Thin Next.js router binding over the pure functions in url-state.ts.
  * Deliberately minimal: all parsing/serialization/cleanup logic (the part
  * worth unit testing) lives in url-state.ts; this hook only wires it to
- * `next/navigation`. Not unit-tested directly for that reason — component-
- * level testing infrastructure (jsdom, a router harness) isn't justified
- * until an actual component consumes this hook (UI-002).
+ * `next/navigation`, plus the commit-vs-edit history-entry fix below (see
+ * `commitCounterRef`'s comment) — unit-tested in use-scenario-selection.test.ts
+ * against a next/navigation mock backed by the real History API.
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   applySelectionUpdate,
@@ -35,13 +35,39 @@ export function useScenarioSelection(): UseScenarioSelectionResult {
   const selection = useMemo(() => parseScenarioSelection(searchParams), [searchParams]);
 
   const navigate = useCallback(
-    (state: ScenarioSelectionState, mode: "push" | "replace") => {
+    (state: ScenarioSelectionState, mode: "push" | "replace", hash?: string) => {
       const query = serializeScenarioSelection(state).toString();
-      const href = query ? `${pathname}?${query}` : pathname;
+      const href = (query ? `${pathname}?${query}` : pathname) + (hash ?? "");
       router[mode](href, { scroll: false });
     },
     [pathname, router],
   );
+
+  // Next.js's own App Router (app-router.js's HistoryUpdater) silently downgrades
+  // a push() to a replaceState() whenever its target URL is byte-identical to
+  // window.location — "mirrors browser behavior for normal navigation," per its
+  // own comment — and that comparison includes the hash. Every updateSelection()
+  // during editing already replace()s the URL to match the in-progress selection,
+  // so by the time commitSelection() below fires, its push() target would
+  // otherwise be identical to the current URL and get silently turned into a
+  // replace, which is exactly why back/forward never worked between submitted
+  // scenarios (confirmed via real-browser testing, see ADR 0008). A monotonic
+  // per-commit hash fragment guarantees the push target always differs from
+  // whatever's currently in the address bar, forcing a real pushState() — and
+  // since useSearchParams() never sees the hash, it has no effect on parsing,
+  // shareable links, or SSR. It clears itself on the next edit, since
+  // updateSelection() always targets a hash-less href.
+  //
+  // The hash IS visible in the address bar right after a submission (e.g.
+  // "...&contribution_provider=synthetic#committed-2") until the next edit.
+  // A same-tick follow-up replace() to strip it was considered and rejected:
+  // Next's action queue (app-router-instance.js's dispatchAction) discards a
+  // still-pending navigate action when another navigate action is dispatched
+  // before it resolves — so a push() immediately followed by a replace()
+  // risks the push's own state (and thus its pushState() call) never being
+  // applied at all, silently reproducing the exact bug this fix exists to
+  // solve. Not worth that risk for a cosmetic, self-clearing artifact.
+  const commitCounterRef = useRef(0);
 
   // Reads the *actual current browser URL* rather than the `selection` above,
   // which is derived from React's `searchParams` and lags behind reality:
@@ -68,7 +94,8 @@ export function useScenarioSelection(): UseScenarioSelectionResult {
   );
 
   const commitSelection = useCallback(() => {
-    navigate(currentSelection(), "push");
+    commitCounterRef.current += 1;
+    navigate(currentSelection(), "push", `#committed-${commitCounterRef.current}`);
   }, [currentSelection, navigate]);
 
   return { selection, updateSelection, commitSelection };

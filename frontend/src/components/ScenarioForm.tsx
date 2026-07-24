@@ -11,6 +11,7 @@ import {
   SUPPORTED_SEASONS,
   type ContributionProviderChoice,
 } from "@/lib/url-state";
+import { deriveScenarioFormState } from "@/lib/scenario-form-validation";
 import { ScenarioField, type ScenarioFieldOption } from "./ScenarioField";
 import { teamDisplayName } from "@/lib/nba-teams";
 import { ScenarioStatus } from "./ScenarioStatus";
@@ -92,18 +93,27 @@ export function ScenarioForm() {
   const successViewModel =
     submission.status === "success" ? toScenarioViewModel(submission.response) : null;
 
-  // Design-review finding: editing a field after a result is shown didn't
-  // mark the still-displayed result as no-longer-matching-the-form. Compares
-  // the current form selection against the values the shown result actually
-  // came from (the response's own echoed team/season/players, and the
-  // separately-snapshotted submittedProvider — see its own comment above for
-  // why that can't be read off the response directly).
-  const resultStale =
-    successViewModel !== null &&
-    (selection.teamId !== successViewModel.teamId ||
-      selection.playerOutId !== successViewModel.playerOutId ||
-      selection.playerInId !== successViewModel.playerInId ||
-      selection.contributionProvider !== submittedProvider);
+  // Extracted to a pure module (scenario-form-validation.ts, matching the
+  // url-state.ts pattern) — see its own doc comments for what each flag means.
+  const {
+    rosterPlayerIds,
+    teamNotFoundInvalid,
+    samePlayerInvalid,
+    playerInAlreadyOnRosterInvalid,
+    playerOutNotOnRosterInvalid,
+    submitDisabled,
+    hasAnythingToClear,
+    resultStale,
+  } = deriveScenarioFormState({
+    selection,
+    knownTeamIds: teams.data?.teams ?? [],
+    teamsLoaded: teams.data !== null,
+    rosterPlayers: teamRoster.data?.players ?? [],
+    rosterLoaded: teamRoster.data !== null,
+    submissionStatus: submission.status,
+    successResult: successViewModel,
+    submittedProvider,
+  });
 
   const knownTeamIds = teams.data?.teams ?? [];
   const teamOptions = withSelectedOptionVisible(
@@ -111,13 +121,8 @@ export function ScenarioForm() {
     selection.teamId,
     [],
   );
-  // Only assertable once the teams list has actually loaded — before that,
-  // "not in the list yet" doesn't mean "invalid," just "not loaded yet."
-  const teamNotFoundInvalid =
-    selection.teamId !== null && teams.data !== null && !knownTeamIds.includes(selection.teamId);
 
   const rosterPlayers = teamRoster.data?.players ?? [];
-  const rosterPlayerIds = new Set(rosterPlayers.map((p) => p.player_id));
   const playerOutOptions = withSelectedOptionVisible(
     rosterPlayers.map((p) => ({ value: p.player_id, label: p.name })),
     selection.playerOutId,
@@ -147,29 +152,7 @@ export function ScenarioForm() {
   for (const p of rosterPlayers) playerNameById.set(p.player_id, p.name);
   const playerLabel = (playerId: string) => playerNameById.get(playerId) ?? playerId;
 
-  // Defense in depth for direct URL edits that bypass the dropdown filtering above.
-  // Each is only assertable once its supporting data has actually loaded —
-  // "not found in the list yet" must not be conflated with "still loading."
-  const samePlayerInvalid =
-    selection.playerOutId !== null &&
-    selection.playerInId !== null &&
-    selection.playerOutId === selection.playerInId;
-  const playerInAlreadyOnRosterInvalid =
-    selection.playerInId !== null && rosterPlayerIds.has(selection.playerInId);
-  const playerOutNotOnRosterInvalid =
-    selection.playerOutId !== null &&
-    teamRoster.data !== null &&
-    !rosterPlayerIds.has(selection.playerOutId);
-
   const loading = submission.status === "loading";
-  // Design-review finding: no "clear/start over" action existed anywhere —
-  // reloading the bare URL was the only way back to a blank form.
-  const hasAnythingToClear =
-    selection.teamId !== null ||
-    selection.playerOutId !== null ||
-    selection.playerInId !== null ||
-    selection.contributionProvider !== null ||
-    submission.status !== "idle";
 
   function handleStartOver() {
     // Season is left untouched — it's the one locked, always-set field, not
@@ -184,15 +167,6 @@ export function ScenarioForm() {
     setSubmission({ status: "idle" });
     setSubmittedProvider(null);
   }
-
-  const complete = isCompleteSelection(selection);
-  const submitDisabled =
-    !complete ||
-    loading ||
-    teamNotFoundInvalid ||
-    samePlayerInvalid ||
-    playerInAlreadyOnRosterInvalid ||
-    playerOutNotOnRosterInvalid;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

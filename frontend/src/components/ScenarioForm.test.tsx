@@ -40,18 +40,28 @@ const routerMocks = vi.hoisted(() => {
  * to avoid a stale-closure race across rapid successive navigations; this
  * mock has to reflect that same real-URL update for that fix to be
  * exercised correctly under test, not silently reading an always-empty URL.
+ *
+ * `queryOf()` extracts only the query string, the same way a real browser's
+ * `URL.search` (and thus `useSearchParams()`) excludes the hash fragment —
+ * commitSelection() (use-scenario-selection.ts) appends a `#committed-N`
+ * hash to force a real history entry (see its own comment), and that must
+ * never leak into parsed selection state here.
  */
+function queryOf(href: string): string {
+  return new URL(href, "http://localhost/").search.slice(1);
+}
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: (href: string, options?: unknown) => {
       routerMocks.push(href, options);
       window.history.pushState(null, "", href);
-      routerMocks.setSearch(href.includes("?") ? href.slice(href.indexOf("?") + 1) : "");
+      routerMocks.setSearch(queryOf(href));
     },
     replace: (href: string, options?: unknown) => {
       routerMocks.replace(href, options);
       window.history.replaceState(null, "", href);
-      routerMocks.setSearch(href.includes("?") ? href.slice(href.indexOf("?") + 1) : "");
+      routerMocks.setSearch(queryOf(href));
     },
   }),
   usePathname: () => "/",
@@ -302,8 +312,14 @@ describe("submission", () => {
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+    // The pushed href carries a trailing #committed-N marker (use-scenario-
+    // selection.ts's history-entry fix — see its own comment) so Next.js's
+    // router doesn't silently downgrade the push to a replace when the query
+    // is already identical to the current URL.
     expect(routerMocks.push).toHaveBeenCalledWith(
-      "/?season=2014-15&team_id=GSW&player_out_id=barbole01&player_in_id=acyqu01&contribution_provider=historical_benchmark",
+      expect.stringMatching(
+        /^\/\?season=2014-15&team_id=GSW&player_out_id=barbole01&player_in_id=acyqu01&contribution_provider=historical_benchmark#committed-\d+$/,
+      ),
       { scroll: false },
     );
   });
