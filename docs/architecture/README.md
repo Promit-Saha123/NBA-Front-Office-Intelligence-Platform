@@ -29,15 +29,17 @@ backend/
   providers/synthetic.py          SyntheticContributionProvider
   minutes/allocator.py  MinutesAllocationConfig, allocate_minutes()
   scenario/service.py   RosterScenarioService
-  api/app.py             FastAPI app: POST /scenarios + 3 read-only lookup
+  api/app.py             FastAPI app: POST /scenarios + 5 read-only lookup
                           GET routes, startup-loaded season data, CORS,
                           DomainError -> HTTP status/code mapping
   api/schemas.py          Pydantic request/response schemas (distinct from
                            the domain dataclasses above)
   api/errors.py           DomainError subclass -> HTTP status table
   api/lookups.py           Pure season/team/player projections over
-                           HistoricalSeasonData for the 3 GET routes — no
-                           business logic, no FastAPI/Pydantic dependency
+                           HistoricalSeasonData for the 5 GET routes — no
+                           business logic, no FastAPI/Pydantic dependency,
+                           no ContributionProvider calls (those stay in
+                           app.py's routes)
   api/openapi_export.py    Deterministic OpenAPI schema export (no server)
 ```
 

@@ -253,6 +253,39 @@ provider.
   `docs/scenario-engine.md` §6-7, §31; lookup routes documented in
   `docs/architecture/README.md`.
 
+**Step 8 (backend half — player/team detail pages) is now also done**,
+adding 2 more read-only GET routes (full detail in
+`docs/architecture/README.md`'s "API layer" section):
+  - `GET /seasons/{season}/players/{player_id}?contribution_provider=historical_benchmark|synthetic`
+    — `contribution_provider` is a **required** query param, no default (an
+    omitted/invalid value 422s via FastAPI's own validation, plain
+    `{"detail": [...]}"`, not the domain `{"code","message"}"` shape).
+    Response (`PlayerDetailResponse`): `season, player_id, name, minutes,
+    possessions` (season-blended totals) + `team_stints: [{team_id, minutes,
+    possessions}]` (**a list** — 76 of the 2014-15 season's players were
+    traded mid-season, so a player can have 2+ stints; stint minutes are
+    regular-season-only and are not guaranteed to sum to the blended
+    `minutes` total) + `contribution_value, provider_type, provider_version,
+    data_version, contribution_epistemic_type, offensive_impact,
+    defensive_impact, attribution` (full provenance quartet, same labeling
+    completeness as `ScenarioResponse`). 404 `PLAYER_NOT_FOUND` for an
+    unknown player, 422 `UNSUPPORTED_SEASON` for a bad season.
+  - `GET /seasons/{season}/teams/{team_id}` — a new, richer sibling of the
+    existing `.../roster` route (that route is unchanged). Response
+    (`TeamDetailResponse`): `season, team_id, players: [RosterPlayerResponse]`
+    (same shape as `.../roster`'s own `players` field) + `roster_size,
+    total_roster_minutes` (a plain sum of the listed players' minutes — no
+    query param, no provider call, no possessions aggregate — a summed
+    per-player possession count would overcount actual team possessions
+    ~5x, so it's deliberately not exposed). 404 `TEAM_NOT_FOUND`, 422
+    `UNSUPPORTED_SEASON`.
+
+Backend: 149 tests (up from 139), all in `tests/test_api_lookups.py`
+alongside the original 3 lookup routes' tests. No new decision record —
+checked against CLAUDE.md's trigger list, nothing applies; these are
+additive projections in the same category as the original 3 lookup routes,
+which also never got a standalone ADR.
+
 **New dependencies:** `fastapi`, `uvicorn[standard]` (main); `httpx2` (dev, for
 FastAPI's `TestClient` — `starlette.testclient` deprecated plain `httpx` in
 favor of `httpx2` in the version pinned here).
@@ -396,6 +429,26 @@ Ruff and mypy both clean.
   now locks in that exact shape.
 
 ## Known gotchas / non-obvious facts worth remembering
+
+- **"Parallel sessions working in worktrees" is not actually true by
+  default — verify with `git worktree list` before trusting that framing.**
+  During step 8, this repo's single shared working directory got its branch
+  switched out from under an in-progress session (`main` →
+  `step8-frontend-pages` → `frontend-tech-debt`, then a `git reset` that
+  discarded that session's uncommitted edits back to committed state) by
+  another concurrent session/process — `git worktree list` showed only one
+  real worktree the whole time, despite multiple sessions apparently being
+  told they had isolated worktrees. Nothing was permanently lost (whatever
+  ran did `git stash` before switching, so the discarded edits survived in
+  `stash@{0}`), but it could have been. **If you're told another session is
+  working "in a parallel worktree," confirm with `git worktree list` before
+  assuming your uncommitted changes are safe from a branch switch — if it
+  shows only one entry, treat the working directory as shared and either
+  commit frequently or set up a real worktree yourself**
+  (`git worktree add -b <branch> <path> main`) before starting substantial
+  uncommitted work. The step 8 backend work recovered this way lives on
+  branch `step8-backend-detail-endpoints` in a sibling directory
+  (`../nba-step8-backend`), not in this checkout.
 
 - **Real browser automation is available in this environment without adding
   a project dependency**: Microsoft Edge is already installed
@@ -643,8 +696,14 @@ next item is step 8: supporting player and team pages; public historical
 deployment** (per CLAUDE.md's list) — though the "Portfolio Roadmap" below
 still governs deployment specifically: **not deploying for now**, so treat
 step 8 as "supporting player/team pages" only until the user raises
-deployment again. None of this is designed yet — expect another
-`EnterPlanMode` pass before writing code, same as steps 6 and 7.
+deployment again.
+
+**Step 8's backend half is now done** (2 new read-only detail routes — see
+"What's actually built" above for the exact contracts). Frontend
+consumption is the remaining piece of step 8 (a parallel session/branch
+appears to already be building `PlayerDetailView.tsx`/`TeamDetailView.tsx`
+against this — reconcile against the exact response shapes documented
+above, not assumed ones, before treating that work as done).
 
 **Dev servers may still be running** from this session's design-review
 evidence-gathering (`uv run uvicorn backend.api.app:app --port 8000` +
@@ -686,12 +745,13 @@ uv run mypy
 uv run pytest -q
 ```
 
-All three should pass clean (**139 tests**, up from 98 — step 6's
-`apply_manual_minutes`/`manual_minutes` tests plus step 7's
-`get_player_profile`/`team_profile` tests, across
-`tests/test_minutes_allocator.py`, `tests/test_contribution_providers.py`,
-`tests/test_historical_loader.py`, `tests/test_scenario_service.py`, and
-`tests/test_api_scenarios.py`). If they don't, something changed since this
+All three should pass clean (**149 tests**, up from 98 — step 6's
+`apply_manual_minutes`/`manual_minutes` tests, step 7's
+`get_player_profile`/`team_profile` tests, and step 8's backend detail-route
+tests, across `tests/test_minutes_allocator.py`,
+`tests/test_contribution_providers.py`, `tests/test_historical_loader.py`,
+`tests/test_scenario_service.py`, `tests/test_api_scenarios.py`, and
+`tests/test_api_lookups.py`). If they don't, something changed since this
 file was last updated — trust the code over this document.
 
 ```bash

@@ -20,20 +20,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api.errors import status_for
-from backend.api.lookups import list_season_players, list_team_ids, list_team_roster
+from backend.api.lookups import (
+    get_player_detail,
+    get_team_detail,
+    list_season_players,
+    list_team_ids,
+    list_team_roster,
+)
 from backend.api.schemas import (
     ContributionProviderChoice,
     ErrorResponse,
     ExplanationFactorResponse,
+    PlayerDetailResponse,
     PlayerSummaryResponse,
     RosterPlayerResponse,
     RotationEntryResponse,
     ScenarioRequest,
     ScenarioResponse,
     SeasonPlayersResponse,
+    TeamDetailResponse,
     TeamProfileCategoryResponse,
     TeamRosterResponse,
     TeamsResponse,
+    TeamStintResponse,
 )
 from backend.domain.errors import DomainError
 from backend.domain.models import RosterScenarioRequest, RosterScenarioResult
@@ -139,6 +148,55 @@ def list_players(season: str, request: Request) -> SeasonPlayersResponse:
     return SeasonPlayersResponse(
         season=season,
         players=[PlayerSummaryResponse(player_id=player_id, name=name) for player_id, name in rows],
+    )
+
+
+@app.get("/seasons/{season}/players/{player_id}", response_model=PlayerDetailResponse)
+def get_player(
+    season: str,
+    player_id: str,
+    contribution_provider: ContributionProviderChoice,
+    request: Request,
+) -> PlayerDetailResponse:
+    state: AppState = request.app.state.nba
+    detail = get_player_detail(state.season_data, season, player_id)
+    provider = state.providers[contribution_provider]
+    contribution_value = provider.get_player_contribution(player_id, season)
+    profile = provider.get_player_profile(player_id, season)
+    return PlayerDetailResponse(
+        season=season,
+        player_id=detail.player_id,
+        name=detail.name,
+        minutes=detail.minutes,
+        possessions=detail.possessions,
+        team_stints=[
+            TeamStintResponse(team_id=s.team_id, minutes=s.minutes, possessions=s.possessions)
+            for s in detail.team_stints
+        ],
+        contribution_value=contribution_value,
+        provider_type=provider.get_provider_type(),
+        provider_version=provider.get_provider_version(),
+        data_version=provider.get_data_version(),
+        contribution_epistemic_type=provider.get_epistemic_type(),
+        offensive_impact=profile.offensive_impact,
+        defensive_impact=profile.defensive_impact,
+        attribution=[provider.get_attribution()],
+    )
+
+
+@app.get("/seasons/{season}/teams/{team_id}", response_model=TeamDetailResponse)
+def get_team(season: str, team_id: str, request: Request) -> TeamDetailResponse:
+    state: AppState = request.app.state.nba
+    detail = get_team_detail(state.season_data, season, team_id)
+    return TeamDetailResponse(
+        season=season,
+        team_id=detail.team_id,
+        players=[
+            RosterPlayerResponse(player_id=player_id, name=name, minutes=minutes)
+            for player_id, name, minutes in detail.players
+        ],
+        roster_size=detail.roster_size,
+        total_roster_minutes=detail.total_roster_minutes,
     )
 
 
