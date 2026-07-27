@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ScenarioViewModel } from "@/lib/view-model";
 import type { ContributionProviderChoice } from "@/lib/url-state";
+import { CourtVisualization } from "./CourtVisualization";
 import { ExplanationFactorsList } from "./ExplanationFactorsList";
 import { TeamProfilePanel } from "./TeamProfilePanel";
 import { ScenarioDisclosuresPanel } from "./ScenarioDisclosuresPanel";
@@ -33,6 +34,13 @@ export interface ScenarioSuccessPreviewProps {
  * its own beyond display formatting (`.toFixed()` rounding, the rotation
  * table's 240-minute display sum) — scenario-engine.md: "may be rounded for
  * display while preserving full precision internally".
+ *
+ * The court diagram (CourtVisualization) is the primary way this view
+ * communicates the roster change — placed directly under the summary grid,
+ * above the rotation table — with that table retained below it as
+ * supporting detail (step 9: court + media integration). Court placement
+ * itself is always a labeled assumption, never a real position; see that
+ * component's own docs.
  */
 export function ScenarioSuccessPreview({
   viewModel,
@@ -101,6 +109,14 @@ export function ScenarioSuccessPreview({
           <dd>{viewModel.contributionChange.toFixed(3)}</dd>
         </div>
       </dl>
+
+      <section className={styles.resultSection} aria-labelledby="court-heading">
+        <h3 id="court-heading">Roster change</h3>
+        <CourtVisualization
+          outgoing={{ playerId: viewModel.playerOutId, name: playerOutLabel }}
+          incoming={{ playerId: viewModel.playerInId, name: playerInLabel }}
+        />
+      </section>
 
       <EditableScenarioMinutes
         viewModel={viewModel}

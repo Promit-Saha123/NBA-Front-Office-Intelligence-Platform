@@ -634,6 +634,23 @@ describe("results and disclosures (UI-003)", () => {
     expect(within(acyRow).getByText("Added")).toBeInTheDocument();
   });
 
+  it("shows the court visualization as the primary roster-change view, above the rotation table", async () => {
+    await submitAndGetResults();
+
+    const court = screen.getByRole("group", { name: /court placement/i });
+    expect(within(court).getByText(/Leandro Barbosa/)).toBeInTheDocument();
+    expect(within(court).getByText(/Quincy Acy/)).toBeInTheDocument();
+    expect(within(court).getByText(/Removed/)).toBeInTheDocument();
+    expect(within(court).getByText(/Added/)).toBeInTheDocument();
+    expect(within(court).getByText(/assumed position/i)).toBeInTheDocument();
+
+    // "Roster change" (the court's section) must precede the rotation table
+    // in document order — it's meant to read as the primary view.
+    const heading = screen.getByRole("heading", { name: /roster change/i });
+    const table = screen.getAllByRole("table")[0];
+    expect(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("shows the allocation repairs note when the response includes one", async () => {
     await submitAndGetResults();
     expect(screen.getByText(/capped a player at the max/i)).toBeInTheDocument();
