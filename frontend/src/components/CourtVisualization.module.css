@@ -29,7 +29,18 @@
   fill: var(--color-border);
 }
 
-.markerOut,
+/* Distinguished by shape (hollow vs. filled), not a second hue — the
+   removed player's marker reads as "leaving" (an outline, fading out),
+   the added player's as "present" (solid). The legend text below still
+   carries the definitive label; this is a supplementary visual cue so the
+   diagram itself is legible without reading it, same one-accent-hue
+   restraint the rest of the app keeps. */
+.markerOut {
+  fill: var(--color-surface);
+  stroke: var(--color-accent);
+  stroke-width: 1.2;
+}
+
 .markerIn {
   fill: var(--color-accent);
   stroke: var(--color-accent-contrast);

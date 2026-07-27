@@ -52,6 +52,15 @@ describe("CourtVisualization", () => {
     expect(secondLegendText).toBe(firstLegendText);
   });
 
+  it("visually distinguishes the removed and added markers by shape, not just position", () => {
+    const { container } = render(<CourtVisualization outgoing={OUTGOING} incoming={INCOMING} />);
+    const circles = container.querySelectorAll("svg circle");
+    // Court decoration draws two circles (circleMark, rim) before the two
+    // player markers — the markers are always the last two in document order.
+    const [outMarker, inMarker] = Array.from(circles).slice(-2);
+    expect(outMarker.getAttribute("class")).not.toBe(inMarker.getAttribute("class"));
+  });
+
   it("exposes the diagram as a labeled, non-interactive region and hides the decorative SVG from assistive tech", () => {
     const { container } = render(<CourtVisualization outgoing={OUTGOING} incoming={INCOMING} />);
 
