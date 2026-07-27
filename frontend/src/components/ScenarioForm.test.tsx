@@ -292,6 +292,30 @@ describe("selection-prevention rules", () => {
   });
 });
 
+describe("team/player media previews", () => {
+  it("renders no team logo or player headshot before anything is selected", async () => {
+    render(<ScenarioForm />);
+    await waitForTeamsLoaded();
+    expect(screen.queryByRole("img", { name: /logo$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /headshot$/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the selected team's logo once a team is chosen", async () => {
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await selectTeam(user, "GSW");
+    expect(screen.getByRole("img", { name: "Golden State Warriors logo" })).toBeInTheDocument();
+  });
+
+  it("shows each selected player's headshot, keyed to that specific player", async () => {
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    expect(screen.getByRole("img", { name: "Leandro Barbosa headshot" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Quincy Acy headshot" })).toBeInTheDocument();
+  });
+});
+
 describe("submission", () => {
   it("calls postScenario with the exact normalized request and pushes the submitted URL", async () => {
     const user = userEvent.setup();
