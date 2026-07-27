@@ -12,6 +12,7 @@ import {
   type ContributionProviderChoice,
 } from "@/lib/url-state";
 import { deriveScenarioFormState } from "@/lib/scenario-form-validation";
+import { PROVIDER_LABELS } from "@/lib/provider-labels";
 import { ScenarioField, type ScenarioFieldOption } from "./ScenarioField";
 import { teamDisplayName } from "@/lib/nba-teams";
 import { ScenarioStatus } from "./ScenarioStatus";
@@ -22,13 +23,12 @@ import styles from "./ScenarioForm.module.css";
 
 const SEASON = SUPPORTED_SEASONS[0];
 
-// Keyed by the request enum (ContributionProviderChoice), not the response enum
-// (ProviderType) ScenarioDisclosuresPanel's PROVIDER_BADGE_TEXT uses — two distinct
-// backend enums for "which provider," each map typed against its own source of truth.
-const PROVIDER_LABELS: Record<ContributionProviderChoice, string> = {
-  historical_benchmark: "Historical RAPTOR benchmark",
-  synthetic: "Synthetic estimate (demo values)",
-};
+// PROVIDER_LABELS is keyed by the request enum (ContributionProviderChoice),
+// not the response enum (ProviderType) ScenarioDisclosuresPanel's
+// PROVIDER_BADGE_TEXT uses — two distinct backend enums for "which
+// provider," each map typed against its own source of truth. Shared with
+// PlayerDetailView.tsx via @/lib/provider-labels (extracted once a second
+// page needed the identical map — frontend-architect review finding).
 
 const STATUS_REGION_ID = "scenario-status";
 

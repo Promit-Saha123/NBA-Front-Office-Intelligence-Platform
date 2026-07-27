@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ScenarioViewModel } from "@/lib/view-model";
 import type { ContributionProviderChoice } from "@/lib/url-state";
 import { ExplanationFactorsList } from "./ExplanationFactorsList";
@@ -57,7 +58,11 @@ export function ScenarioSuccessPreview({
       <dl className={styles.successGrid}>
         <div>
           <dt>Team</dt>
-          <dd>{teamLabel}</dd>
+          <dd>
+            <Link href={`/teams/${encodeURIComponent(viewModel.teamId)}?season=${viewModel.season}`}>
+              {teamLabel}
+            </Link>
+          </dd>
         </div>
         <div>
           <dt>Season</dt>
@@ -65,11 +70,23 @@ export function ScenarioSuccessPreview({
         </div>
         <div>
           <dt>Player removed</dt>
-          <dd>{playerOutLabel}</dd>
+          <dd>
+            <Link
+              href={`/players/${encodeURIComponent(viewModel.playerOutId)}?season=${viewModel.season}`}
+            >
+              {playerOutLabel}
+            </Link>
+          </dd>
         </div>
         <div>
           <dt>Player added</dt>
-          <dd>{playerInLabel}</dd>
+          <dd>
+            <Link
+              href={`/players/${encodeURIComponent(viewModel.playerInId)}?season=${viewModel.season}`}
+            >
+              {playerInLabel}
+            </Link>
+          </dd>
         </div>
         <div>
           <dt>Original contribution</dt>

@@ -38,9 +38,20 @@
  *
  * Each effect cancels its in-flight request (AbortController) on unmount or
  * when its inputs change; an aborted request's callback is a no-op.
+ *
+ * The shared boilerplate this pattern needs (`isAbortError`,
+ * `toScenarioApiError`, `CompletedRequest`, `deriveAsyncRequestState`) lives
+ * in `use-async-request.ts` — extracted once `use-player-team-detail.ts`
+ * needed the identical helpers verbatim.
  */
 import { useEffect, useState } from "react";
-import { ScenarioApiError, UNKNOWN_ERROR_CODE, messageForErrorCode } from "@/lib/api/errors";
+import {
+  deriveAsyncRequestState,
+  isAbortError,
+  toScenarioApiError,
+  type AsyncRequestState,
+  type CompletedRequest,
+} from "@/lib/use-async-request";
 import {
   getTeamRoster,
   listSeasonPlayers,
@@ -50,41 +61,8 @@ import {
   type TeamsResponse,
 } from "@/lib/api/lookups";
 
-export interface LookupState<T> {
-  data: T | null;
-  error: ScenarioApiError | null;
-  loading: boolean;
-}
-
-interface CompletedResult<T> {
-  key: string;
-  data: T | null;
-  error: ScenarioApiError | null;
-}
-
-function isAbortError(value: unknown): value is DOMException {
-  return value instanceof DOMException && value.name === "AbortError";
-}
-
-function toScenarioApiError(err: unknown): ScenarioApiError {
-  if (err instanceof ScenarioApiError) return err;
-  return new ScenarioApiError({
-    status: 0,
-    code: UNKNOWN_ERROR_CODE,
-    message: messageForErrorCode(UNKNOWN_ERROR_CODE),
-    devDetail: err,
-  });
-}
-
-function deriveState<T>(result: CompletedResult<T> | null, key: string): LookupState<T> {
-  if (result === null || result.key !== key) {
-    return { data: null, error: null, loading: true };
-  }
-  return { data: result.data, error: result.error, loading: false };
-}
-
-export function useTeams(season: string): LookupState<TeamsResponse> {
-  const [result, setResult] = useState<CompletedResult<TeamsResponse> | null>(null);
+export function useTeams(season: string): AsyncRequestState<TeamsResponse> {
+  const [result, setResult] = useState<CompletedRequest<TeamsResponse> | null>(null);
 
   useEffect(() => {
     let settled = false;
@@ -105,11 +83,11 @@ export function useTeams(season: string): LookupState<TeamsResponse> {
     };
   }, [season]);
 
-  return deriveState(result, season);
+  return deriveAsyncRequestState(result, season);
 }
 
-export function useSeasonPlayers(season: string): LookupState<SeasonPlayersResponse> {
-  const [result, setResult] = useState<CompletedResult<SeasonPlayersResponse> | null>(null);
+export function useSeasonPlayers(season: string): AsyncRequestState<SeasonPlayersResponse> {
+  const [result, setResult] = useState<CompletedRequest<SeasonPlayersResponse> | null>(null);
 
   useEffect(() => {
     let settled = false;
@@ -130,12 +108,15 @@ export function useSeasonPlayers(season: string): LookupState<SeasonPlayersRespo
     };
   }, [season]);
 
-  return deriveState(result, season);
+  return deriveAsyncRequestState(result, season);
 }
 
 /** `teamId: null` means "no team selected yet" — idle, not loading, no fetch. */
-export function useTeamRoster(season: string, teamId: string | null): LookupState<TeamRosterResponse> {
-  const [result, setResult] = useState<CompletedResult<TeamRosterResponse> | null>(null);
+export function useTeamRoster(
+  season: string,
+  teamId: string | null,
+): AsyncRequestState<TeamRosterResponse> {
+  const [result, setResult] = useState<CompletedRequest<TeamRosterResponse> | null>(null);
 
   useEffect(() => {
     if (teamId === null) return;
@@ -161,5 +142,5 @@ export function useTeamRoster(season: string, teamId: string | null): LookupStat
   if (teamId === null) {
     return { data: null, error: null, loading: false };
   }
-  return deriveState(result, `${season}:${teamId}`);
+  return deriveAsyncRequestState(result, `${season}:${teamId}`);
 }

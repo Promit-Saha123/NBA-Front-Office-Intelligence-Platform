@@ -115,3 +115,34 @@ class PlayerSummaryResponse(BaseModel):
 class SeasonPlayersResponse(BaseModel):
     season: str
     players: list[PlayerSummaryResponse]
+
+
+class TeamStintResponse(BaseModel):
+    team_id: str
+    minutes: float
+    possessions: int
+
+
+class PlayerDetailResponse(BaseModel):
+    season: str
+    player_id: str
+    name: str
+    minutes: float
+    possessions: int
+    team_stints: list[TeamStintResponse]
+    contribution_value: float
+    provider_type: ProviderType
+    provider_version: str
+    data_version: str
+    contribution_epistemic_type: EpistemicType
+    offensive_impact: float
+    defensive_impact: float
+    attribution: list[str]
+
+
+class TeamDetailResponse(BaseModel):
+    season: str
+    team_id: str
+    players: list[RosterPlayerResponse]
+    roster_size: int
+    total_roster_minutes: float

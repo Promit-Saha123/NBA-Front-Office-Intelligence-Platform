@@ -147,6 +147,7 @@ export function EditableScenarioMinutes({
         rows={viewModel.rotationComparison}
         outgoingPlayerId={viewModel.playerOutId}
         incomingPlayerId={viewModel.playerInId}
+        season={viewModel.season}
         playerLabel={playerLabel}
         editableScenario={editing}
         scenarioDraft={editing ? draft : undefined}

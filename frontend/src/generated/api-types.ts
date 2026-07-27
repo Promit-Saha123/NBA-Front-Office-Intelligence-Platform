@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/seasons/{season}/players/{player_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Player */
+        get: operations["get_player_seasons__season__players__player_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/seasons/{season}/teams": {
         parameters: {
             query?: never;
@@ -47,6 +64,23 @@ export interface paths {
         };
         /** List Teams */
         get: operations["list_teams_seasons__season__teams_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/seasons/{season}/teams/{team_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Team */
+        get: operations["get_team_seasons__season__teams__team_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -111,6 +145,35 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** PlayerDetailResponse */
+        PlayerDetailResponse: {
+            /** Attribution */
+            attribution: string[];
+            contribution_epistemic_type: components["schemas"]["EpistemicType"];
+            /** Contribution Value */
+            contribution_value: number;
+            /** Data Version */
+            data_version: string;
+            /** Defensive Impact */
+            defensive_impact: number;
+            /** Minutes */
+            minutes: number;
+            /** Name */
+            name: string;
+            /** Offensive Impact */
+            offensive_impact: number;
+            /** Player Id */
+            player_id: string;
+            /** Possessions */
+            possessions: number;
+            provider_type: components["schemas"]["ProviderType"];
+            /** Provider Version */
+            provider_version: string;
+            /** Season */
+            season: string;
+            /** Team Stints */
+            team_stints: components["schemas"]["TeamStintResponse"][];
         };
         /** PlayerSummaryResponse */
         PlayerSummaryResponse: {
@@ -209,6 +272,19 @@ export interface components {
             /** Season */
             season: string;
         };
+        /** TeamDetailResponse */
+        TeamDetailResponse: {
+            /** Players */
+            players: components["schemas"]["RosterPlayerResponse"][];
+            /** Roster Size */
+            roster_size: number;
+            /** Season */
+            season: string;
+            /** Team Id */
+            team_id: string;
+            /** Total Roster Minutes */
+            total_roster_minutes: number;
+        };
         /** TeamProfileCategoryResponse */
         TeamProfileCategoryResponse: {
             /** Baseline Value */
@@ -229,6 +305,15 @@ export interface components {
             players: components["schemas"]["RosterPlayerResponse"][];
             /** Season */
             season: string;
+            /** Team Id */
+            team_id: string;
+        };
+        /** TeamStintResponse */
+        TeamStintResponse: {
+            /** Minutes */
+            minutes: number;
+            /** Possessions */
+            possessions: number;
             /** Team Id */
             team_id: string;
         };
@@ -325,6 +410,40 @@ export interface operations {
             };
         };
     };
+    get_player_seasons__season__players__player_id__get: {
+        parameters: {
+            query: {
+                contribution_provider: components["schemas"]["ContributionProviderChoice"];
+            };
+            header?: never;
+            path: {
+                season: string;
+                player_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_teams_seasons__season__teams_get: {
         parameters: {
             query?: never;
@@ -343,6 +462,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_team_seasons__season__teams__team_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                season: string;
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamDetailResponse"];
                 };
             };
             /** @description Validation Error */

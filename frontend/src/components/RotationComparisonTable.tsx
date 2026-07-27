@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { RotationComparisonRow } from "@/lib/view-model";
 import styles from "./ScenarioForm.module.css";
 
@@ -5,6 +6,8 @@ export interface RotationComparisonTableProps {
   rows: RotationComparisonRow[];
   outgoingPlayerId: string;
   incomingPlayerId: string;
+  /** Used to build each row's link to /players/[playerId] — this table never fetches player data itself. */
+  season: string;
   /** Resolves a player_id to a display name from lookup data already loaded by the form. */
   playerLabel: (playerId: string) => string;
   /** When true, every scenario-column cell except the outgoing player's becomes an editable
@@ -31,6 +34,7 @@ export function RotationComparisonTable({
   rows,
   outgoingPlayerId,
   incomingPlayerId,
+  season,
   playerLabel,
   editableScenario = false,
   scenarioDraft,
@@ -73,7 +77,11 @@ export function RotationComparisonTable({
                 // pattern per decision 0008's UI-003 review; text-only carries the distinction
                 // just as accessibly since color is never the sole signal either way.
                 <tr key={row.playerId} className={isOutgoing ? styles.rowOutgoing : undefined}>
-                  <th scope="row">{playerLabel(row.playerId)}</th>
+                  <th scope="row">
+                    <Link href={`/players/${encodeURIComponent(row.playerId)}?season=${season}`}>
+                      {playerLabel(row.playerId)}
+                    </Link>
+                  </th>
                   <td className={isOutgoing || isIncoming ? styles.statusTag : undefined}>
                     {isOutgoing ? "Removed" : isIncoming ? "Added" : ""}
                   </td>

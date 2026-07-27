@@ -74,6 +74,88 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "PlayerDetailResponse": {
+        "properties": {
+          "attribution": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "contribution_epistemic_type": {
+            "$ref": "#/components/schemas/EpistemicType"
+          },
+          "contribution_value": {
+            "title": "Contribution Value",
+            "type": "number"
+          },
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "defensive_impact": {
+            "title": "Defensive Impact",
+            "type": "number"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "offensive_impact": {
+            "title": "Offensive Impact",
+            "type": "number"
+          },
+          "player_id": {
+            "title": "Player Id",
+            "type": "string"
+          },
+          "possessions": {
+            "title": "Possessions",
+            "type": "integer"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "provider_version": {
+            "title": "Provider Version",
+            "type": "string"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "team_stints": {
+            "items": {
+              "$ref": "#/components/schemas/TeamStintResponse"
+            },
+            "title": "Team Stints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "season",
+          "player_id",
+          "name",
+          "minutes",
+          "possessions",
+          "team_stints",
+          "contribution_value",
+          "provider_type",
+          "provider_version",
+          "data_version",
+          "contribution_epistemic_type",
+          "offensive_impact",
+          "defensive_impact",
+          "attribution"
+        ],
+        "title": "PlayerDetailResponse",
+        "type": "object"
+      },
       "PlayerSummaryResponse": {
         "properties": {
           "name": {
@@ -358,6 +440,42 @@
         "title": "SeasonPlayersResponse",
         "type": "object"
       },
+      "TeamDetailResponse": {
+        "properties": {
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/RosterPlayerResponse"
+            },
+            "title": "Players",
+            "type": "array"
+          },
+          "roster_size": {
+            "title": "Roster Size",
+            "type": "integer"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "string"
+          },
+          "total_roster_minutes": {
+            "title": "Total Roster Minutes",
+            "type": "number"
+          }
+        },
+        "required": [
+          "season",
+          "team_id",
+          "players",
+          "roster_size",
+          "total_roster_minutes"
+        ],
+        "title": "TeamDetailResponse",
+        "type": "object"
+      },
       "TeamProfileCategoryResponse": {
         "properties": {
           "baseline_value": {
@@ -419,6 +537,29 @@
           "players"
         ],
         "title": "TeamRosterResponse",
+        "type": "object"
+      },
+      "TeamStintResponse": {
+        "properties": {
+          "minutes": {
+            "title": "Minutes",
+            "type": "number"
+          },
+          "possessions": {
+            "title": "Possessions",
+            "type": "integer"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "team_id",
+          "minutes",
+          "possessions"
+        ],
+        "title": "TeamStintResponse",
         "type": "object"
       },
       "TeamsResponse": {
@@ -567,6 +708,62 @@
         "summary": "List Players"
       }
     },
+    "/seasons/{season}/players/{player_id}": {
+      "get": {
+        "operationId": "get_player_seasons__season__players__player_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "season",
+            "required": true,
+            "schema": {
+              "title": "Season",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "title": "Player Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "contribution_provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ContributionProviderChoice"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Player"
+      }
+    },
     "/seasons/{season}/teams": {
       "get": {
         "operationId": "list_teams_seasons__season__teams_get",
@@ -604,6 +801,54 @@
           }
         },
         "summary": "List Teams"
+      }
+    },
+    "/seasons/{season}/teams/{team_id}": {
+      "get": {
+        "operationId": "get_team_seasons__season__teams__team_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "season",
+            "required": true,
+            "schema": {
+              "title": "Season",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team_id",
+            "required": true,
+            "schema": {
+              "title": "Team Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Team"
       }
     },
     "/seasons/{season}/teams/{team_id}/roster": {

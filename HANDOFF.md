@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-07-25
+**Last updated:** 2026-07-27
 
 ---
 
@@ -59,7 +59,33 @@ recognition aids (full team names, player list grouped by first letter via
 native `<optgroup>`), a non-interactive Season display, and a "Start over"
 action. Frontend: 110 tests (up from 105). Full critique report at
 `.impeccable/critique/2026-07-24T00-56-10Z__frontend-src-app-page-tsx.md`.
-No database, no trained model exist.
+**Step 8 (supporting player and team pages) is now also done** (2026-07-27,
+built across two concurrent sessions sharing this checkout — see "Known
+gotchas" for the coordination story): two new read-only backend routes,
+`GET /seasons/{season}/players/{player_id}` and
+`GET /seasons/{season}/teams/{team_id}` (`backend/api/lookups.py`'s
+provider-free `get_player_detail`/`get_team_detail` projections, called from
+`backend/api/app.py`'s routes with an explicit `contribution_provider`
+choice — `PlayerNotFoundError`/`TeamNotFoundError` reused, no new domain
+errors), and two new Next.js routes, `/players/[playerId]` and
+`/teams/[teamId]` (`PlayerDetailView.tsx`/`TeamDetailView.tsx`, each a client
+component behind a thin `page.tsx`/`<Suspense>` wrapper, matching the
+existing `app/page.tsx` pattern), linked from the scenario results view
+(every rotation-table player name and the summary team/player fields in
+`ScenarioSuccessPreview.tsx` now link to these pages). A player can have more
+than one team stint in a season (mid-season trade), so
+`PlayerDetailResponse.team_stints` is a list, not a single `team_id`; team
+detail exposes no per-player contribution or provider metadata at all
+(`roster_size`/`total_roster_minutes` only — summing RAPTOR's per-player
+possessions would overcount a team's real season possessions roughly 5x, so
+that aggregate is deliberately not exposed). Backend: 149 tests (up from
+139), ruff/mypy clean. Frontend: 162 tests (up from 110), typecheck/lint/
+build clean. Reviewed with the `architecture-review` skill (clean) and the
+`frontend-architect` subagent, which found 5 real, non-severe issues, all
+fixed (see step 8's own entry below for the full list — the request-type
+provenance gap, the unwired `?season=` param, duplicated hook boilerplate,
+a missing stale-request regression test, and a duplicated provider-label
+map). No database, no trained model exist.
 
 ## Portfolio Roadmap
 
@@ -395,6 +421,74 @@ Ruff and mypy both clean.
   explains this correctly with no code change needed; a regression test
   now locks in that exact shape.
 
+**Step 8 — supporting player and team pages** (2026-07-27):
+- Backend: `backend/api/lookups.py` gained `get_player_detail`/
+  `get_team_detail` (plus their `PlayerDetail`/`TeamDetail`/`TeamStint`
+  dataclasses) as pure, provider-free projections over the already-loaded
+  `HistoricalSeasonData` — same "no ContributionProvider calls in the
+  lookup layer" rule the original 3 UI-002 lookup functions already
+  followed, so provider selection stays an explicit per-request choice made
+  in `backend/api/app.py`'s route, not defaulted or duplicated. Wired as
+  `GET /seasons/{season}/players/{player_id}` (requires
+  `contribution_provider`, same as `POST /scenarios`) and
+  `GET /seasons/{season}/teams/{team_id}` (no provider param — the team
+  route exposes no provider-derived value). New `PlayerDetailResponse`/
+  `TeamDetailResponse`/`TeamStintResponse` schemas in `backend/api/schemas.py`.
+  8 new tests in `tests/test_api_lookups.py`, including a real mid-season
+  trade case (Arron Afflalo, DEN → POR, 2014-15) proving `team_stints` is
+  actually exercised as a list.
+- Frontend: `src/lib/api/detail.ts` (`getPlayerDetail`/`getTeamDetail`,
+  same ajv-from-generated-OpenAPI validation as `scenarios.ts`/`lookups.ts`),
+  `src/lib/detail-view-model.ts` (reshape-only, per decision 0008),
+  `src/lib/use-player-team-detail.ts` (same derived-loading-from-key hook
+  pattern as `use-roster-lookups.ts`), and the page content components
+  `PlayerDetailView.tsx`/`TeamDetailView.tsx` (behind
+  `app/players/[playerId]/page.tsx`/`app/teams/[teamId]/page.tsx`, each a
+  thin `<Suspense>` wrapper matching `app/page.tsx`). `DetailStatus.tsx`
+  and `DetailDisclosuresPanel.tsx` are shared between both pages — the
+  latter's `providerInfo` prop is optional since team-detail has nothing
+  provider-derived to disclose. Player detail has an explicit provider
+  `<select>` (URL-backed via `?contribution_provider=`, default
+  `historical_benchmark` on first load — a page-level display default, not
+  a backend fallback); team detail has no provider selector at all, since
+  the route accepts none. Navigation wired from the scenario results view:
+  every `RotationComparisonTable.tsx` row's player name and
+  `ScenarioSuccessPreview.tsx`'s Team/Player-removed/Player-added fields
+  now link to these pages. 52 new frontend tests across
+  `detail.test.ts`/`detail-view-model.test.ts`/`PlayerDetailView.test.tsx`/
+  `TeamDetailView.test.tsx`/`use-player-team-detail.test.ts`.
+- Reviewed with the `architecture-review` skill (clean — provider choice
+  stays explicit and visible on both routes/pages, no per-request
+  `ContributionProvider`/`HistoricalSeasonData` re-instantiation, API-client
+  isolation held) and the `frontend-architect` subagent, which found 5 real
+  issues, all fixed:
+  1. `src/lib/api/detail.ts` typed its `provider` request parameter from
+     `url-state.ts`'s hand-written literal union instead of the generated
+     OpenAPI schema — the same hand-sync drift risk decision 0008 rejected
+     for responses, just on a request param. Fixed: `detail.ts` now
+     re-exports `ContributionProviderChoice` from `components["schemas"]`,
+     same as `scenarios.ts`.
+  2. Every cross-link into these pages wrote `?season=`, but neither page
+     actually read it back — harmless with one supported season, but silent
+     wrong-season rendering the moment a second one ships. Fixed:
+     `url-state.ts`'s `normalizeSeason` is now exported and both
+     `PlayerDetailView`/`TeamDetailView` parse+validate `?season=` (falling
+     back to the one supported season, never erroring).
+  3. `use-player-team-detail.ts` duplicated `use-roster-lookups.ts`'s
+     `isAbortError`/`toScenarioApiError`/`CompletedResult`/`deriveState`
+     helpers verbatim. Fixed: extracted into `src/lib/use-async-request.ts`,
+     imported by both hook files; each concrete hook body is unchanged.
+  4. No test locked in `use-player-team-detail.ts`'s stale-request-on-
+     revisited-key behavior, unlike the equivalent (and equally fragile)
+     logic in `use-roster-lookups.ts`. Fixed: added
+     `use-player-team-detail.test.ts` with the same A→B→A regression shape.
+  5. `PROVIDER_LABELS` was hand-maintained identically in both
+     `ScenarioForm.tsx` and `PlayerDetailView.tsx`. Fixed: extracted to
+     `src/lib/provider-labels.ts`, imported by both.
+- **Built across two concurrent sessions sharing this one checkout, not
+  isolated worktrees** — see the "Parallel worktrees isn't always true"
+  gotcha below for the coordination story and the near-miss it caused.
+
 ## Known gotchas / non-obvious facts worth remembering
 
 - **"Parallel worktrees" isn't always true — check `git worktree list`, not
@@ -667,13 +761,15 @@ labeled `ScenarioFieldOption[]` for display, which is presentational, not
 validation. `/review`/`/code-review` are still not usable (no PR yet at
 the time this was written; `code-review` still not in the skill listing).
 
-With steps 1-7 of CLAUDE.md's "Development Priority" list complete, **the
-next item is step 8: supporting player and team pages; public historical
-deployment** (per CLAUDE.md's list) — though the "Portfolio Roadmap" below
-still governs deployment specifically: **not deploying for now**, so treat
-step 8 as "supporting player/team pages" only until the user raises
-deployment again. None of this is designed yet — expect another
-`EnterPlanMode` pass before writing code, same as steps 6 and 7.
+**Step 8 (supporting player and team pages) is now done** (2026-07-27 — see
+its own entry above under "What's actually built" for the full account).
+With steps 1-8 of CLAUDE.md's "Development Priority" list complete, **the
+next items are step 9 (visual polish and broader features) and step 8's
+other half, public historical deployment** — the "Portfolio Roadmap" below
+still governs deployment specifically: **not deploying for now**, so don't
+start deployment work, hosting selection, or a Vercel project until the
+user raises it again. Neither is designed yet — expect another
+`EnterPlanMode` pass before writing code, same as steps 6, 7, and 8.
 
 **Dev servers may still be running** from this session's design-review
 evidence-gathering (`uv run uvicorn backend.api.app:app --port 8000` +
@@ -727,27 +823,24 @@ uv run mypy
 uv run pytest -q
 ```
 
-All three should pass clean (**139 tests**, up from 98 — step 6's
-`apply_manual_minutes`/`manual_minutes` tests plus step 7's
-`get_player_profile`/`team_profile` tests, across
-`tests/test_minutes_allocator.py`, `tests/test_contribution_providers.py`,
-`tests/test_historical_loader.py`, `tests/test_scenario_service.py`, and
-`tests/test_api_scenarios.py`). If they don't, something changed since this
-file was last updated — trust the code over this document.
+All three should pass clean (**149 tests**, up from 139 — step 8's
+`get_player_detail`/`get_team_detail` tests in `tests/test_api_lookups.py`).
+If they don't, something changed since this file was last updated — trust
+the code over this document.
 
 ```bash
 cd frontend
 pnpm typecheck
 pnpm lint
-pnpm test        # hermetic, 110 tests, no uv/Python required
+pnpm test        # hermetic, 162 tests, no uv/Python required
 pnpm build
 ```
 
-All four should pass clean. `pnpm test:codegen` (3 more tests, 113 total)
+All four should pass clean. `pnpm test:codegen` (3 more tests, 165 total)
 additionally requires `uv`/Python on PATH — see the pnpm-on-PATH gotcha
 above if `pnpm` itself isn't found. `pnpm run check:api-fresh` should also
 report the generated API contract as up to date (it's regenerated as part
-of step 7's `team_profile` field — see decision 0010).
+of step 8's `PlayerDetailResponse`/`TeamDetailResponse` fields).
 
 **Real browser smoke test done this session** (superseding UI-003's
 curl-only verification): `uv run uvicorn backend.api.app:app --port 8000`

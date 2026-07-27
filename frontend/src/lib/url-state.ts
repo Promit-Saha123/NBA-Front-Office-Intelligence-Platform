@@ -43,7 +43,9 @@ export interface SearchParamsLike {
   get(name: string): string | null;
 }
 
-function normalizeSeason(value: string | null): SupportedSeason | null {
+/** Exported for the player/team detail pages, which read `?season=` outside
+ *  the 5-field scenario-selection shape this module otherwise owns. */
+export function normalizeSeason(value: string | null): SupportedSeason | null {
   return value !== null && (SUPPORTED_SEASONS as readonly string[]).includes(value)
     ? (value as SupportedSeason)
     : null;

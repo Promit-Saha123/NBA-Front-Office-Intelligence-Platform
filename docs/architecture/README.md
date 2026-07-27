@@ -68,6 +68,44 @@ decision 0008's "UI-002 Implementation Notes"): `GET /seasons/{season}/teams`,
 `TeamNotFoundError`/`UnsupportedSeasonError` from `backend/domain/errors.py`
 for consistent 404/422 behavior through the same exception handler.
 
+Two more read-only routes support standalone player/team detail pages
+(step 8, CLAUDE.md's build order):
+
+* `GET /seasons/{season}/players/{player_id}?contribution_provider=...` —
+  `contribution_provider` (`ContributionProviderChoice`) is a **required**
+  query parameter, no default, matching `POST /scenarios`' own
+  no-provider-fallback rule; an omitted or invalid value fails FastAPI's own
+  request validation (plain `{"detail": [...]}"` 422), not the domain
+  `{"code","message"}"` shape. The route composes
+  `lookups.get_player_detail()` (season-blended identity/usage plus
+  per-team stints — see below) with direct `ContributionProvider.
+  get_player_contribution()`/`get_player_profile()` calls, the same
+  compositional pattern `create_scenario()` uses; every RAPTOR-derived value
+  in the response (`contribution_value`, `offensive_impact`,
+  `defensive_impact`) carries its full provenance quartet
+  (`provider_type`, `provider_version`, `data_version`,
+  `contribution_epistemic_type`) plus `attribution`, matching
+  `ScenarioResponse`'s labeling completeness.
+  **`team_stints` is a list, not a single team_id**: 76 of the 2014-15
+  season's players were traded mid-season (verified directly against the
+  pinned CSV, e.g. Arron Afflalo — DEN then POR), so `lookups.
+  get_player_detail()` reverse-scans every team roster for that player_id
+  rather than assuming one team. Stint minutes/possessions are
+  regular-season-only (by-team CSV); the top-level `minutes`/`possessions`
+  are the season-blended totals (by-player CSV, may include playoffs) — the
+  two are not asserted equal in tests, only stint-sum ≤ blended-total.
+* `GET /seasons/{season}/teams/{team_id}` — a richer sibling of the existing
+  `.../roster` route (left untouched; the frontend already depends on its
+  exact shape), adding `roster_size` and `total_roster_minutes` (a plain sum
+  of the already-listed per-player minutes) to the same player list.
+  **Deliberately no summed possessions aggregate**: RAPTOR's `poss` is a
+  per-player on-court possession count, and summing it across a roster would
+  overcount the team's actual season possessions roughly 5x (each
+  possession credits ~5 players simultaneously) — a number that would look
+  like a real team stat while silently misrepresenting one. No provider
+  call is made for this route (no query parameter either) — it exposes only
+  raw roster/identity data, same category as the original 3 lookup routes.
+
 CORS (`CORSMiddleware`, origins from `FRONTEND_ORIGINS`, methods `GET` and
 `POST`) is configured because the browser calls this API directly — no
 Next.js proxy (decision 0008 §6). Run locally with
