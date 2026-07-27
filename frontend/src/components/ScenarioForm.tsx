@@ -15,6 +15,8 @@ import { deriveScenarioFormState } from "@/lib/scenario-form-validation";
 import { PROVIDER_LABELS } from "@/lib/provider-labels";
 import { ScenarioField, type ScenarioFieldOption } from "./ScenarioField";
 import { teamDisplayName } from "@/lib/nba-teams";
+import { TeamLogo } from "./TeamLogo";
+import { PlayerHeadshot } from "./PlayerHeadshot";
 import { ScenarioStatus } from "./ScenarioStatus";
 import { ScenarioSuccessPreview } from "./ScenarioSuccessPreview";
 import type { SubmissionState } from "./scenario-submission-state";
@@ -232,71 +234,84 @@ export function ScenarioForm() {
             Only the 2014-15 season is available in this historical dataset.
           </p>
         </div>
-        <ScenarioField
-          id="team"
-          label="Team"
-          value={selection.teamId}
-          onChange={(value) => updateSelection({ teamId: value })}
-          options={teamOptions}
-          disabled={loading || teams.loading}
-          placeholder={teams.loading ? "Loading teams…" : "Select a team"}
-          errorText={
-            teamNotFoundInvalid
-              ? "That team wasn't found for this season."
-              : teams.error?.message
-          }
-          required
-        />
-        <ScenarioField
-          id="player-out"
-          label="Player to remove"
-          value={selection.playerOutId}
-          onChange={(value) => updateSelection({ playerOutId: value })}
-          options={playerOutOptions}
-          disabled={loading || selection.teamId === null || teamRoster.loading}
-          placeholder={
-            selection.teamId === null
-              ? "Select a team first"
-              : teamRoster.loading
+        <div className={styles.fieldWithMedia}>
+          {selection.teamId ? <TeamLogo teamId={selection.teamId} /> : null}
+          <ScenarioField
+            id="team"
+            label="Team"
+            value={selection.teamId}
+            onChange={(value) => updateSelection({ teamId: value })}
+            options={teamOptions}
+            disabled={loading || teams.loading}
+            placeholder={teams.loading ? "Loading teams…" : "Select a team"}
+            errorText={
+              teamNotFoundInvalid
+                ? "That team wasn't found for this season."
+                : teams.error?.message
+            }
+            required
+          />
+        </div>
+        <div className={styles.fieldWithMedia}>
+          {selection.playerOutId ? (
+            <PlayerHeadshot playerId={selection.playerOutId} name={playerLabel(selection.playerOutId)} />
+          ) : null}
+          <ScenarioField
+            id="player-out"
+            label="Player to remove"
+            value={selection.playerOutId}
+            onChange={(value) => updateSelection({ playerOutId: value })}
+            options={playerOutOptions}
+            disabled={loading || selection.teamId === null || teamRoster.loading}
+            placeholder={
+              selection.teamId === null
+                ? "Select a team first"
+                : teamRoster.loading
+                  ? "Loading roster…"
+                  : "Select a player"
+            }
+            errorText={
+              playerOutNotOnRosterInvalid
+                ? "That player isn't on this team's roster."
+                // A team-not-found roster fetch failure is already reported on the team
+                // field itself (teamNotFoundInvalid, below) — showing it here too would
+                // duplicate the same problem with inconsistent wording in two places.
+                : teamNotFoundInvalid
+                  ? undefined
+                  : teamRoster.error?.message
+            }
+            required
+          />
+        </div>
+        <div className={styles.fieldWithMedia}>
+          {selection.playerInId ? (
+            <PlayerHeadshot playerId={selection.playerInId} name={playerLabel(selection.playerInId)} />
+          ) : null}
+          <ScenarioField
+            id="player-in"
+            label="Player to add"
+            value={selection.playerInId}
+            onChange={(value) => updateSelection({ playerInId: value })}
+            options={playerInOptions}
+            disabled={loading || seasonPlayers.loading || (selection.teamId !== null && teamRoster.loading)}
+            placeholder={
+              selection.teamId !== null && teamRoster.loading
                 ? "Loading roster…"
-                : "Select a player"
-          }
-          errorText={
-            playerOutNotOnRosterInvalid
-              ? "That player isn't on this team's roster."
-              // A team-not-found roster fetch failure is already reported on the team
-              // field itself (teamNotFoundInvalid, below) — showing it here too would
-              // duplicate the same problem with inconsistent wording in two places.
-              : teamNotFoundInvalid
-                ? undefined
-                : teamRoster.error?.message
-          }
-          required
-        />
-        <ScenarioField
-          id="player-in"
-          label="Player to add"
-          value={selection.playerInId}
-          onChange={(value) => updateSelection({ playerInId: value })}
-          options={playerInOptions}
-          disabled={loading || seasonPlayers.loading || (selection.teamId !== null && teamRoster.loading)}
-          placeholder={
-            selection.teamId !== null && teamRoster.loading
-              ? "Loading roster…"
-              : seasonPlayers.loading
-                ? "Loading players…"
-                : "Select a player"
-          }
-          helpText="Any 2014-15 player from any team, except this team's current roster."
-          errorText={
-            samePlayerInvalid
-              ? "Choose a different player than the one being removed."
-              : playerInAlreadyOnRosterInvalid
-                ? "That player is already on this team's roster."
-                : seasonPlayers.error?.message
-          }
-          required
-        />
+                : seasonPlayers.loading
+                  ? "Loading players…"
+                  : "Select a player"
+            }
+            helpText="Any 2014-15 player from any team, except this team's current roster."
+            errorText={
+              samePlayerInvalid
+                ? "Choose a different player than the one being removed."
+                : playerInAlreadyOnRosterInvalid
+                  ? "That player is already on this team's roster."
+                  : seasonPlayers.error?.message
+            }
+            required
+          />
+        </div>
         <ScenarioField
           id="provider"
           label="Contribution provider"

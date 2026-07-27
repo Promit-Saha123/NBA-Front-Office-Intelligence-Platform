@@ -44,3 +44,48 @@ export const NBA_TEAM_NAMES_2014_15: Record<string, string> = {
 export function teamDisplayName(teamId: string): string {
   return NBA_TEAM_NAMES_2014_15[teamId] ?? teamId;
 }
+
+/**
+ * Approximate primary brand colors per team — used only as a background
+ * tint for TeamLogo.tsx's generated placeholder badge, never to reproduce
+ * an actual team logo mark. A color alone isn't the trademarked asset (the
+ * logo artwork is); this carries the same "public fact, no data-rules
+ * implication" status as the team names above.
+ */
+export const NBA_TEAM_COLORS_2014_15: Record<string, string> = {
+  ATL: "#E03A3E",
+  BOS: "#007A33",
+  BRK: "#000000",
+  CHA: "#1D1160",
+  CHI: "#CE1141",
+  CLE: "#860038",
+  DAL: "#00538C",
+  DEN: "#0E2240",
+  DET: "#C8102E",
+  GSW: "#1D428A",
+  HOU: "#CE1141",
+  IND: "#002D62",
+  LAC: "#C8102E",
+  LAL: "#552583",
+  MEM: "#5D76A9",
+  MIA: "#98002E",
+  MIL: "#00471B",
+  MIN: "#0C2340",
+  NOP: "#0C2340",
+  NYK: "#006BB6",
+  OKC: "#007AC1",
+  ORL: "#0077C0",
+  PHI: "#006BB6",
+  PHO: "#E56020",
+  POR: "#E03A3E",
+  SAC: "#5A2D81",
+  SAS: "#8A8D8F",
+  TOR: "#CE1141",
+  UTA: "#002B5C",
+  WAS: "#002B5C",
+};
+
+/** Falls back to a neutral gray for any code not in the table. */
+export function teamAccentColor(teamId: string): string {
+  return NBA_TEAM_COLORS_2014_15[teamId] ?? "#5c5c5c";
+}
