@@ -107,6 +107,10 @@ const SEASON_PLAYERS = {
     { player_id: "curryst01", name: "Stephen Curry" },
     { player_id: "acyqu01", name: "Quincy Acy" },
     { player_id: "bradlav01", name: "Avery Bradley" },
+    // Added for the Starting Lineup (5-player) results fixture below.
+    { player_id: "thompkl01", name: "Klay Thompson" },
+    { player_id: "greendr01", name: "Draymond Green" },
+    { player_id: "iguodan01", name: "Andre Iguodala" },
   ],
 };
 
@@ -554,14 +558,23 @@ describe("error display", () => {
 
 const RESULTS_RESPONSE: ScenarioResponse = {
   ...VALID_RESPONSE,
+  // Five players at real minutes (plus the outgoing player) so the
+  // Starting Lineup court's top-5-by-scenario-minutes selection has real
+  // data to rank, not just the 2-3 entries earlier UI-003 tests needed.
   baseline_rotation: [
-    { player_id: "curryst01", minutes: 200 },
+    { player_id: "curryst01", minutes: 60 },
+    { player_id: "thompkl01", minutes: 50 },
+    { player_id: "greendr01", minutes: 45 },
+    { player_id: "iguodan01", minutes: 45 },
     { player_id: "barbole01", minutes: 40 },
   ],
   // Mirrors backend/scenario/service.py: the outgoing player is carried into
   // scenario_rotation at 0 minutes, not omitted — never null in the real contract.
   scenario_rotation: [
-    { player_id: "curryst01", minutes: 200 },
+    { player_id: "curryst01", minutes: 60 },
+    { player_id: "thompkl01", minutes: 50 },
+    { player_id: "greendr01", minutes: 45 },
+    { player_id: "iguodan01", minutes: 45 },
     { player_id: "acyqu01", minutes: 40 },
     { player_id: "barbole01", minutes: 0 },
   ],
@@ -634,21 +647,51 @@ describe("results and disclosures (UI-003)", () => {
     expect(within(acyRow).getByText("Added")).toBeInTheDocument();
   });
 
-  it("shows the court visualization as the primary roster-change view, above the rotation table", async () => {
+  it("shows the Starting Lineup court as the primary view, above the rotation table", async () => {
     await submitAndGetResults();
 
-    const court = screen.getByRole("group", { name: /court placement/i });
-    expect(within(court).getByText(/Leandro Barbosa/)).toBeInTheDocument();
-    expect(within(court).getByText(/Quincy Acy/)).toBeInTheDocument();
-    expect(within(court).getByText(/Removed/)).toBeInTheDocument();
-    expect(within(court).getByText(/Added/)).toBeInTheDocument();
-    expect(within(court).getByText(/assumed position/i)).toBeInTheDocument();
+    // Top 5 by scenario minutes: Curry(60), Thompson(50), Green(45),
+    // Iguodala(45), Acy(40) — Barbosa (0, the outgoing player) is excluded.
+    // Names appear twice inside the court group (once as an SVG label, once
+    // in the accessible legend list) — scoped to the legend for one match.
+    const court = screen.getByRole("group", { name: /starting lineup/i });
+    const legend = within(court).getByRole("list");
+    expect(within(legend).getByText("Stephen Curry")).toBeInTheDocument();
+    expect(within(legend).getByText("Klay Thompson")).toBeInTheDocument();
+    expect(within(legend).getByText("Draymond Green")).toBeInTheDocument();
+    expect(within(legend).getByText("Andre Iguodala")).toBeInTheDocument();
+    expect(within(legend).getByText("Quincy Acy")).toBeInTheDocument();
+    expect(within(legend).queryByText("Leandro Barbosa")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Starting lineup shown below. Player placement on the court is for visualization only and does not represent verified on-court positions.",
+      ),
+    ).toBeInTheDocument();
 
-    // "Roster change" (the court's section) must precede the rotation table
-    // in document order — it's meant to read as the primary view.
-    const heading = screen.getByRole("heading", { name: /roster change/i });
+    // "Starting Lineup" (the court's section) must precede the rotation
+    // table in document order — it's meant to read as the primary view.
+    const heading = screen.getByRole("heading", { name: /starting lineup/i });
     const table = screen.getAllByRole("table")[0];
     expect(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows the court's own empty state, not a broken diagram, when fewer than five scenario players have minutes", async () => {
+    scenarioMocks.postScenario.mockResolvedValue({
+      ...RESULTS_RESPONSE,
+      scenario_rotation: [
+        { player_id: "curryst01", minutes: 200 },
+        { player_id: "acyqu01", minutes: 40 },
+        { player_id: "barbole01", minutes: 0 },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    await user.click(screen.getByRole("button", { name: /run scenario/i }));
+    await waitFor(() => expect(screen.getByText(/completed successfully/i)).toBeInTheDocument());
+
+    expect(screen.getByText(/starting lineup unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /starting lineup/i })).not.toBeInTheDocument();
   });
 
   it("shows the allocation repairs note when the response includes one", async () => {

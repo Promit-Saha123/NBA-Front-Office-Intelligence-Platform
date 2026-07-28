@@ -1,12 +1,35 @@
 import Link from "next/link";
 import type { ScenarioViewModel } from "@/lib/view-model";
 import type { ContributionProviderChoice } from "@/lib/url-state";
-import { CourtVisualization } from "./CourtVisualization";
+import { CourtVisualization, type CourtVisualizationPlayer } from "./CourtVisualization";
 import { ExplanationFactorsList } from "./ExplanationFactorsList";
 import { TeamProfilePanel } from "./TeamProfilePanel";
 import { ScenarioDisclosuresPanel } from "./ScenarioDisclosuresPanel";
 import { EditableScenarioMinutes } from "./EditableScenarioMinutes";
 import styles from "./ScenarioForm.module.css";
+
+const STARTING_LINEUP_SIZE = 5;
+
+/**
+ * The five scenario-rotation players with the most minutes — this project
+ * has no real starting-lineup or box-score data (decision 0007), so this is
+ * a display-only, data-grounded proxy, not a claim about verified starters.
+ * Ranks the post-swap ("scenario") rotation, not the baseline one, so this
+ * reflects the resulting team the tool actually produced — CourtVisualization
+ * already refuses to render (and shows its own empty state) unless given
+ * exactly five, so a scenario with fewer active rotation spots degrades
+ * safely rather than showing a partial court.
+ */
+function topScenarioLineup(
+  viewModel: ScenarioViewModel,
+  playerLabel: (playerId: string) => string,
+): CourtVisualizationPlayer[] {
+  return viewModel.rotationComparison
+    .filter((row) => row.scenarioMinutes !== null)
+    .sort((a, b) => (b.scenarioMinutes as number) - (a.scenarioMinutes as number))
+    .slice(0, STARTING_LINEUP_SIZE)
+    .map((row) => ({ playerId: row.playerId, name: playerLabel(row.playerId) }));
+}
 
 export interface ScenarioSuccessPreviewProps {
   /** Computed once by the caller (ScenarioForm) so every field shown here — and every
@@ -35,12 +58,12 @@ export interface ScenarioSuccessPreviewProps {
  * table's 240-minute display sum) — scenario-engine.md: "may be rounded for
  * display while preserving full precision internally".
  *
- * The court diagram (CourtVisualization) is the primary way this view
- * communicates the roster change — placed directly under the summary grid,
- * above the rotation table — with that table retained below it as
- * supporting detail (step 9: court + media integration). Court placement
- * itself is always a labeled assumption, never a real position; see that
- * component's own docs.
+ * The Starting Lineup court diagram (CourtVisualization) is the primary way
+ * this view communicates what the resulting team looks like — placed
+ * directly under the summary grid, above the rotation table — with that
+ * table retained below it as supporting detail (step 9: court + media
+ * integration). Court placement is always a fixed layout slot, never a real
+ * or assumed basketball position; see that component's own docs.
  */
 export function ScenarioSuccessPreview({
   viewModel,
@@ -111,11 +134,8 @@ export function ScenarioSuccessPreview({
       </dl>
 
       <section className={styles.resultSection} aria-labelledby="court-heading">
-        <h3 id="court-heading">Roster change</h3>
-        <CourtVisualization
-          outgoing={{ playerId: viewModel.playerOutId, name: playerOutLabel }}
-          incoming={{ playerId: viewModel.playerInId, name: playerInLabel }}
-        />
+        <h3 id="court-heading">Starting Lineup</h3>
+        <CourtVisualization players={topScenarioLineup(viewModel, playerLabel)} />
       </section>
 
       <EditableScenarioMinutes

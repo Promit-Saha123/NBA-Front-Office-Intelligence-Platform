@@ -1,104 +1,68 @@
 import styles from "./CourtVisualization.module.css";
 
-export type CourtPosition = "PG" | "SG" | "SF" | "PF" | "C";
-
-const POSITION_LABELS: Record<CourtPosition, string> = {
-  PG: "Point Guard",
-  SG: "Shooting Guard",
-  SF: "Small Forward",
-  PF: "Power Forward",
-  C: "Center",
-};
-
-const POSITIONS: CourtPosition[] = ["PG", "SG", "SF", "PF", "C"];
-
-// Illustrative half-court spots for each position, not derived from any
-// real play-calling or tracking data — purely so the two players render at
-// visually distinct, recognizable areas of the court.
-const POSITION_COORDS: Record<CourtPosition, { x: number; y: number }> = {
-  PG: { x: 50, y: 28 },
-  SG: { x: 85, y: 55 },
-  SF: { x: 15, y: 55 },
-  PF: { x: 68, y: 78 },
-  C: { x: 50, y: 88 },
-};
-
 export interface CourtVisualizationPlayer {
   playerId: string;
   name: string;
-  /** Caller-supplied real position, if known. When omitted, this component
-   *  assigns a deterministic placeholder slot (hashed from playerId) purely
-   *  so the two players render at different court spots — this project's
-   *  data has no position field (see backend/minutes/allocator.py), so any
-   *  position shown here is always an assumption, never a verified fact. */
-  position?: CourtPosition;
 }
 
 export interface CourtVisualizationProps {
-  outgoing: CourtVisualizationPlayer;
-  incoming: CourtVisualizationPlayer;
+  /** Expected to be exactly 5 (the team's scenario starting lineup, by
+   *  minutes — see ScenarioSuccessPreview.tsx for how this is derived).
+   *  Any other length renders the empty/error state instead of a partial
+   *  or overfull court. */
+  players: CourtVisualizationPlayer[];
 }
 
-// Deterministic and presentational only — not a real position inference
-// model. The same playerId always maps to the same slot so re-renders (and
-// re-visits of the same scenario) don't jitter.
-function assumePosition(playerId: string): CourtPosition {
-  let hash = 0;
-  for (let i = 0; i < playerId.length; i++) {
-    hash = (hash * 31 + playerId.charCodeAt(i)) | 0;
-  }
-  return POSITIONS[Math.abs(hash) % POSITIONS.length];
-}
+const REQUIRED_PLAYER_COUNT = 5;
 
-function resolvePosition(player: CourtVisualizationPlayer): {
-  position: CourtPosition;
-  isAssumed: boolean;
-} {
-  if (player.position) {
-    return { position: player.position, isAssumed: false };
-  }
-  return { position: assumePosition(player.playerId), isAssumed: true };
-}
-
-// The diagram is decorative (aria-hidden) — the legend list is the sole
-// carrier of player names and the "Removed"/"Added" text labels, so those
-// strings deliberately aren't duplicated here as SVG text.
-function PlayerMarker({
-  player,
-  markerClassName,
-  offsetX,
-}: {
-  player: CourtVisualizationPlayer;
-  markerClassName: string;
-  offsetX: number;
-}) {
-  const { position } = resolvePosition(player);
-  const coord = POSITION_COORDS[position];
-  return <circle cx={coord.x + offsetX} cy={coord.y} r="4.5" className={markerClassName} />;
-}
+// Five fixed, evenly distributed half-court anchor points — purely a
+// layout device so five names render at distinct, readable spots. Not
+// tied to any real or assumed position (PG/SG/SF/PF/C); slots are filled
+// in the order `players` is given (ScenarioSuccessPreview.tsx orders that
+// by minutes, most to least), not by inferred role. Kept inside a modest
+// horizontal margin (22-78, not the full 0-100 width) and always
+// center-anchored so a long name grows symmetrically outward from its
+// marker rather than running off one edge of the diagram.
+const COURT_SLOTS: { x: number; y: number }[] = [
+  { x: 50, y: 20 },
+  { x: 78, y: 50 },
+  { x: 22, y: 50 },
+  { x: 66, y: 80 },
+  { x: 34, y: 80 },
+];
 
 /**
- * Standalone, props-driven half-court diagram showing where a roster
- * scenario's outgoing and incoming player are positioned. Position
- * placement is always an assumption (real position when the caller has it,
- * otherwise a deterministic placeholder) and is labeled as such everywhere
- * it appears — this project's underlying data has no position field, so
- * nothing here is presented as a verified fact (CLAUDE.md's heuristic-vs-
- * fact labeling rule).
+ * Standalone, props-driven half-court diagram showing the scenario's
+ * five-player starting lineup (by minutes — this project's data has no
+ * real starting-lineup or position field, see decision 0007/CLAUDE.md's
+ * "no box-score data" note). Marker placement is always a fixed layout
+ * slot, never a real or assumed basketball position — nothing here claims
+ * otherwise (CLAUDE.md's heuristic-vs-fact labeling rule).
  *
- * The diagram itself is decorative (`aria-hidden`); the legend list below
- * it is the real accessible content, so screen readers and keyboard users
- * get full text equivalents without any custom widget behavior to manage.
+ * The diagram itself is decorative (`aria-hidden`) with each player's name
+ * additionally drawn next to their marker for sighted users scanning the
+ * court; the legend list below is the real accessible content, so screen
+ * readers and keyboard users get the full lineup as plain text regardless.
  */
-export function CourtVisualization({ outgoing, incoming }: CourtVisualizationProps) {
-  const out = resolvePosition(outgoing);
-  const inc = resolvePosition(incoming);
+export function CourtVisualization({ players }: CourtVisualizationProps) {
+  if (players.length !== REQUIRED_PLAYER_COUNT) {
+    // Plain empty-state text, no aria-live role — same pattern as
+    // TeamProfilePanel.tsx/ExplanationFactorsList.tsx's empty states.
+    // This is static content resolved at render time, not a live
+    // announcement, and a role="status" here would collide with the
+    // page's own submission-status live region.
+    return (
+      <p className={styles.empty}>
+        Starting lineup unavailable — this scenario doesn&apos;t have five rotation players to show.
+      </p>
+    );
+  }
 
   return (
-    <div className={styles.wrap} role="group" aria-label="Court placement for this roster scenario">
+    <div className={styles.wrap} role="group" aria-label="Starting lineup for this roster scenario">
       <p className={styles.help}>
-        Court placement below is an assumed position for visualization only, not a verified or
-        real position — this dataset has no player position field.
+        Starting lineup shown below. Player placement on the court is for visualization only and
+        does not represent verified on-court positions.
       </p>
 
       <svg viewBox="0 0 100 100" className={styles.court} aria-hidden="true" focusable="false">
@@ -108,21 +72,23 @@ export function CourtVisualization({ outgoing, incoming }: CourtVisualizationPro
         <path d="M 6 94 A 44 44 0 0 1 94 94" className={styles.arc} />
         <circle cx="50" cy="93" r="1.3" className={styles.rim} />
 
-        <PlayerMarker player={outgoing} markerClassName={styles.markerOut} offsetX={-5} />
-        <PlayerMarker player={incoming} markerClassName={styles.markerIn} offsetX={5} />
+        {players.map((player, index) => {
+          const slot = COURT_SLOTS[index];
+          return (
+            <g key={player.playerId}>
+              <circle cx={slot.x} cy={slot.y} r="4.5" className={styles.marker} />
+              <text x={slot.x} y={slot.y + 8.5} textAnchor="middle" className={styles.nameLabel}>
+                {player.name}
+              </text>
+            </g>
+          );
+        })}
       </svg>
 
       <ul className={styles.legend}>
-        <li>
-          <span className={styles.tag}>Removed</span> {outgoing.name} — assumed{" "}
-          {POSITION_LABELS[out.position]}
-          {out.isAssumed ? " (placeholder, position unknown)" : ""}
-        </li>
-        <li>
-          <span className={styles.tag}>Added</span> {incoming.name} — assumed{" "}
-          {POSITION_LABELS[inc.position]}
-          {inc.isAssumed ? " (placeholder, position unknown)" : ""}
-        </li>
+        {players.map((player) => (
+          <li key={player.playerId}>{player.name}</li>
+        ))}
       </ul>
     </div>
   );

@@ -10,10 +10,23 @@
   margin: 0;
 }
 
+.empty {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+}
+
 .court {
   width: 100%;
-  max-width: 22rem;
+  max-width: 26rem;
   margin: 0 auto;
+  /* Safety net for an unusually long name at one of the two side slots —
+     lets its label extend past the nominal 100-unit viewBox rather than
+     being clipped, instead of forcing every name to fit inside it. */
+  overflow: visible;
 }
 
 .outline,
@@ -29,22 +42,16 @@
   fill: var(--color-border);
 }
 
-/* Distinguished by shape (hollow vs. filled), not a second hue — the
-   removed player's marker reads as "leaving" (an outline, fading out),
-   the added player's as "present" (solid). The legend text below still
-   carries the definitive label; this is a supplementary visual cue so the
-   diagram itself is legible without reading it, same one-accent-hue
-   restraint the rest of the app keeps. */
-.markerOut {
-  fill: var(--color-surface);
-  stroke: var(--color-accent);
-  stroke-width: 1.2;
-}
-
-.markerIn {
+.marker {
   fill: var(--color-accent);
   stroke: var(--color-accent-contrast);
   stroke-width: 0.6;
+}
+
+.nameLabel {
+  fill: var(--color-text);
+  font-size: 3px;
+  font-weight: 600;
 }
 
 .legend {
@@ -55,9 +62,4 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   font-size: 0.9rem;
-}
-
-.tag {
-  color: var(--color-accent-text);
-  font-weight: 700;
 }
