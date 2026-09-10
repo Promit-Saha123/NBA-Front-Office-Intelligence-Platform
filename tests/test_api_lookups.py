@@ -229,3 +229,32 @@ def test_get_team_unsupported_season_returns_422(client: TestClient) -> None:
     response = client.get("/seasons/1999-00/teams/GSW")
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"
+
+
+# --- Second-season (2015-16) coverage: proves the season-keyed AppState refactor ---
+
+
+def test_2015_16_list_teams_and_get_team_roster_return_real_data(client: TestClient) -> None:
+    teams_response = client.get("/seasons/2015-16/teams")
+    assert teams_response.status_code == 200
+    assert teams_response.json()["season"] == "2015-16"
+    assert "GSW" in teams_response.json()["teams"]
+
+    roster_response = client.get("/seasons/2015-16/teams/GSW/roster")
+    assert roster_response.status_code == 200
+    body = roster_response.json()
+    assert body["season"] == "2015-16"
+    curry = next(p for p in body["players"] if p["player_id"] == "curryst01")
+    assert curry["minutes"] == 2700.0
+
+
+def test_2015_16_get_player_returns_real_data(client: TestClient) -> None:
+    response = client.get(
+        "/seasons/2015-16/players/curryst01",
+        params={"contribution_provider": "historical_benchmark"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["season"] == "2015-16"
+    assert body["name"] == "Stephen Curry"
+    assert body["contribution_value"] == pytest.approx(12.487858, abs=1e-6)

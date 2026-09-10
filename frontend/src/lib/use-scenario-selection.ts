@@ -7,6 +7,15 @@
  * `next/navigation`, plus the commit-vs-edit history-entry fix below (see
  * `commitCounterRef`'s comment) — unit-tested in use-scenario-selection.test.ts
  * against a next/navigation mock backed by the real History API.
+ *
+ * Accepts an optional `paramKeys` (default: unprefixed) so two independent
+ * instances — each with their own prefixed `paramKeys` and `hashPrefix` —
+ * can coexist on one page for the comparison view (decision 0012). `navigate()`
+ * always merges into the *current* full URLSearchParams rather than rebuilding
+ * from only this instance's 5 fields, so one side's update never drops the
+ * other side's params; on a single-scenario page the current URL only ever
+ * contains this instance's own keys anyway, so merge-in-place and
+ * rebuild-from-scratch are equivalent there — no behavior change.
  */
 import { useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +23,8 @@ import {
   applySelectionUpdate,
   parseScenarioSelection,
   serializeScenarioSelection,
+  PARAM_KEYS,
+  type ParamKeys,
   type ScenarioSelectionState,
 } from "@/lib/url-state";
 
@@ -27,20 +38,34 @@ export interface UseScenarioSelectionResult {
   commitSelection: () => void;
 }
 
-export function useScenarioSelection(): UseScenarioSelectionResult {
+export function useScenarioSelection(
+  paramKeys: ParamKeys = PARAM_KEYS,
+  hashPrefix = "committed",
+): UseScenarioSelectionResult {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const selection = useMemo(() => parseScenarioSelection(searchParams), [searchParams]);
+  const selection = useMemo(
+    () => parseScenarioSelection(searchParams, paramKeys),
+    [searchParams, paramKeys],
+  );
 
+  // Merges this instance's own paramKeys into the *current* full query string,
+  // leaving every other param (another comparison-view side, or anything else
+  // on the URL) untouched — see the module doc comment above.
   const navigate = useCallback(
     (state: ScenarioSelectionState, mode: "push" | "replace", hash?: string) => {
-      const query = serializeScenarioSelection(state).toString();
+      const merged = new URLSearchParams(window.location.search);
+      for (const param of Object.values(paramKeys)) merged.delete(param);
+      for (const [param, value] of serializeScenarioSelection(state, paramKeys)) {
+        merged.set(param, value);
+      }
+      const query = merged.toString();
       const href = (query ? `${pathname}?${query}` : pathname) + (hash ?? "");
       router[mode](href, { scroll: false });
     },
-    [pathname, router],
+    [pathname, router, paramKeys],
   );
 
   // Next.js's own App Router (app-router.js's HistoryUpdater) silently downgrades
@@ -57,6 +82,13 @@ export function useScenarioSelection(): UseScenarioSelectionResult {
   // since useSearchParams() never sees the hash, it has no effect on parsing,
   // shareable links, or SSR. It clears itself on the next edit, since
   // updateSelection() always targets a hash-less href.
+  //
+  // The hash is namespaced by `hashPrefix` (default "committed", e.g. "a"/"b"
+  // for the two independent instances on the comparison view, decision 0012)
+  // — without that, two hook instances sharing one window.location.hash could
+  // both produce the same "#committed-1" on their respective first commits,
+  // silently reintroducing the exact collapse bug this mechanism exists to
+  // prevent for whichever side commits second.
   //
   // The hash IS visible in the address bar right after a submission (e.g.
   // "...&contribution_provider=synthetic#committed-2") until the next edit.
@@ -82,8 +114,9 @@ export function useScenarioSelection(): UseScenarioSelectionResult {
   // this fix. Reading window.location.search directly sidesteps the race
   // entirely, independent of React's render timing.
   const currentSelection = useCallback(
-    (): ScenarioSelectionState => parseScenarioSelection(new URLSearchParams(window.location.search)),
-    [],
+    (): ScenarioSelectionState =>
+      parseScenarioSelection(new URLSearchParams(window.location.search), paramKeys),
+    [paramKeys],
   );
 
   const updateSelection = useCallback(
@@ -95,8 +128,8 @@ export function useScenarioSelection(): UseScenarioSelectionResult {
 
   const commitSelection = useCallback(() => {
     commitCounterRef.current += 1;
-    navigate(currentSelection(), "push", `#committed-${commitCounterRef.current}`);
-  }, [currentSelection, navigate]);
+    navigate(currentSelection(), "push", `#${hashPrefix}-${commitCounterRef.current}`);
+  }, [currentSelection, navigate, hashPrefix]);
 
   return { selection, updateSelection, commitSelection };
 }

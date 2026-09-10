@@ -1,11 +1,12 @@
 """FastAPI application exposing the roster scenario engine (decision 0007 free MVP).
 
-One route: POST /scenarios. The 2014-15 HistoricalSeasonData is loaded once
-at startup (scenario-engine.md §29: "model artifact loaded once at
-application startup", "no live external request during a scenario
-calculation") and reused for every request; the route itself only parses the
-request, calls RosterScenarioService.build_scenario(), and maps the result —
-all business logic stays in backend/scenario/service.py.
+One route: POST /scenarios. Every supported season's HistoricalSeasonData is
+loaded once at startup, one per season (scenario-engine.md §29: "model
+artifact loaded once at application startup", "no live external request
+during a scenario calculation"), keyed by season label and reused for every
+request; the route itself only parses the request, calls
+RosterScenarioService.build_scenario(), and maps the result — all business
+logic stays in backend/scenario/service.py.
 """
 
 from __future__ import annotations
@@ -44,15 +45,17 @@ from backend.api.schemas import (
     TeamsResponse,
     TeamStintResponse,
 )
-from backend.domain.errors import DomainError
+from backend.domain.errors import DomainError, UnsupportedSeasonError
 from backend.domain.models import RosterScenarioRequest, RosterScenarioResult
-from backend.fixtures.historical_loader import HistoricalSeasonData, load_historical_season
+from backend.fixtures.historical_loader import (
+    SUPPORTED_SEASON_LABELS,
+    HistoricalSeasonData,
+    load_historical_season,
+)
 from backend.providers.base import ContributionProvider
 from backend.providers.raptor_benchmark import HistoricalRaptorBenchmarkProvider
 from backend.providers.synthetic import SyntheticContributionProvider
 from backend.scenario.service import RosterScenarioService
-
-SEASON_LABEL = "2014-15"
 
 # The browser calls this API directly — no Next.js proxy route (decision 0008,
 # clarification 6: a proxy solves no CORS/auth/deployment problem this free,
@@ -69,24 +72,37 @@ def _frontend_origins() -> list[str]:
 
 @dataclass(frozen=True)
 class AppState:
-    service: RosterScenarioService
-    providers: dict[ContributionProviderChoice, ContributionProvider]
-    season_data: HistoricalSeasonData
+    services: dict[str, RosterScenarioService]
+    providers: dict[str, dict[ContributionProviderChoice, ContributionProvider]]
+    season_data: dict[str, HistoricalSeasonData]
+
+
+def _season_state(state: AppState, season: str) -> HistoricalSeasonData:
+    try:
+        return state.season_data[season]
+    except KeyError:
+        raise UnsupportedSeasonError(
+            f"Season {season!r} is not supported; "
+            f"supported seasons: {sorted(state.season_data)}"
+        ) from None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    season_data = load_historical_season(SEASON_LABEL)
-    app.state.nba = AppState(
-        service=RosterScenarioService(season_data),
-        providers={
+    season_data: dict[str, HistoricalSeasonData] = {}
+    services: dict[str, RosterScenarioService] = {}
+    providers: dict[str, dict[ContributionProviderChoice, ContributionProvider]] = {}
+    for season_label in sorted(SUPPORTED_SEASON_LABELS):
+        data = load_historical_season(season_label)
+        season_data[season_label] = data
+        services[season_label] = RosterScenarioService(data)
+        providers[season_label] = {
             ContributionProviderChoice.HISTORICAL_BENCHMARK: HistoricalRaptorBenchmarkProvider(
-                season_data
+                data
             ),
             ContributionProviderChoice.SYNTHETIC: SyntheticContributionProvider(),
-        },
-        season_data=season_data,
-    )
+        }
+    app.state.nba = AppState(services=services, providers=providers, season_data=season_data)
     yield
 
 
@@ -108,7 +124,8 @@ async def domain_error_handler(request: Request, exc: DomainError) -> JSONRespon
 @app.post("/scenarios", response_model=ScenarioResponse)
 def create_scenario(payload: ScenarioRequest, request: Request) -> ScenarioResponse:
     state: AppState = request.app.state.nba
-    provider = state.providers[payload.contribution_provider]
+    _season_state(state, payload.season)
+    provider = state.providers[payload.season][payload.contribution_provider]
     domain_request = RosterScenarioRequest(
         team_id=payload.team_id,
         season_label=payload.season,
@@ -116,21 +133,21 @@ def create_scenario(payload: ScenarioRequest, request: Request) -> ScenarioRespo
         player_in_id=payload.player_in_id,
         manual_minutes=payload.manual_minutes,
     )
-    result = state.service.build_scenario(domain_request, provider)
+    result = state.services[payload.season].build_scenario(domain_request, provider)
     return _to_response(result)
 
 
 @app.get("/seasons/{season}/teams", response_model=TeamsResponse)
 def list_teams(season: str, request: Request) -> TeamsResponse:
     state: AppState = request.app.state.nba
-    team_ids = list_team_ids(state.season_data, season)
+    team_ids = list_team_ids(_season_state(state, season), season)
     return TeamsResponse(season=season, teams=team_ids)
 
 
 @app.get("/seasons/{season}/teams/{team_id}/roster", response_model=TeamRosterResponse)
 def get_team_roster(season: str, team_id: str, request: Request) -> TeamRosterResponse:
     state: AppState = request.app.state.nba
-    rows = list_team_roster(state.season_data, season, team_id)
+    rows = list_team_roster(_season_state(state, season), season, team_id)
     return TeamRosterResponse(
         season=season,
         team_id=team_id,
@@ -144,7 +161,7 @@ def get_team_roster(season: str, team_id: str, request: Request) -> TeamRosterRe
 @app.get("/seasons/{season}/players", response_model=SeasonPlayersResponse)
 def list_players(season: str, request: Request) -> SeasonPlayersResponse:
     state: AppState = request.app.state.nba
-    rows = list_season_players(state.season_data, season)
+    rows = list_season_players(_season_state(state, season), season)
     return SeasonPlayersResponse(
         season=season,
         players=[PlayerSummaryResponse(player_id=player_id, name=name) for player_id, name in rows],
@@ -159,8 +176,8 @@ def get_player(
     request: Request,
 ) -> PlayerDetailResponse:
     state: AppState = request.app.state.nba
-    detail = get_player_detail(state.season_data, season, player_id)
-    provider = state.providers[contribution_provider]
+    detail = get_player_detail(_season_state(state, season), season, player_id)
+    provider = state.providers[season][contribution_provider]
     contribution_value = provider.get_player_contribution(player_id, season)
     profile = provider.get_player_profile(player_id, season)
     return PlayerDetailResponse(
@@ -187,7 +204,7 @@ def get_player(
 @app.get("/seasons/{season}/teams/{team_id}", response_model=TeamDetailResponse)
 def get_team(season: str, team_id: str, request: Request) -> TeamDetailResponse:
     state: AppState = request.app.state.nba
-    detail = get_team_detail(state.season_data, season, team_id)
+    detail = get_team_detail(_season_state(state, season), season, team_id)
     return TeamDetailResponse(
         season=season,
         team_id=detail.team_id,

@@ -788,14 +788,13 @@ describe("accessibility", () => {
     expect(screen.getByLabelText(/contribution provider/i)).toBeInTheDocument();
   });
 
-  it("shows the season as static, non-interactive text rather than a fake-disabled control", async () => {
+  it("shows the season as a real dropdown with every supported season", async () => {
     render(<ScenarioForm />);
-    // Static text (not a <select>) — design-review finding: a disabled select
-    // with one option still looks clickable and invites a pointless click.
     const season = screen.getByLabelText(/season/i);
-    expect(season.tagName).toBe("P");
-    expect(season).toHaveTextContent("2014-15");
-    expect(screen.getByText(/only the 2014-15 season is available/i)).toBeInTheDocument();
+    expect(season.tagName).toBe("SELECT");
+    expect(season).toHaveValue("2014-15");
+    expect(screen.getByRole("option", { name: "2014-15" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "2015-16" })).toBeInTheDocument();
   });
 
   it("supports full keyboard operation: tab to the submit button and press Enter", async () => {

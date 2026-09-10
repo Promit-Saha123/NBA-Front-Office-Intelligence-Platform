@@ -8,8 +8,10 @@ import { ScenarioApiError, UNKNOWN_ERROR_CODE, messageForErrorCode } from "@/lib
 import {
   CONTRIBUTION_PROVIDER_CHOICES,
   isCompleteSelection,
+  PARAM_KEYS,
   SUPPORTED_SEASONS,
   type ContributionProviderChoice,
+  type ParamKeys,
 } from "@/lib/url-state";
 import { deriveScenarioFormState } from "@/lib/scenario-form-validation";
 import { PROVIDER_LABELS } from "@/lib/provider-labels";
@@ -21,7 +23,10 @@ import type { SubmissionState } from "./scenario-submission-state";
 import { toScenarioViewModel } from "@/lib/view-model";
 import styles from "./ScenarioForm.module.css";
 
-const SEASON = SUPPORTED_SEASONS[0];
+// Default for the brief pre-mount-effect window before `selection.season` is
+// populated from the URL (see the mount effect below) — not a "locked"
+// value anymore now that SUPPORTED_SEASONS has more than one entry.
+const DEFAULT_SEASON = SUPPORTED_SEASONS[0];
 
 // PROVIDER_LABELS is keyed by the request enum (ContributionProviderChoice),
 // not the response enum (ProviderType) ScenarioDisclosuresPanel's
@@ -30,7 +35,7 @@ const SEASON = SUPPORTED_SEASONS[0];
 // PlayerDetailView.tsx via @/lib/provider-labels (extracted once a second
 // page needed the identical map — frontend-architect review finding).
 
-const STATUS_REGION_ID = "scenario-status";
+const DEFAULT_STATUS_REGION_ID = "scenario-status";
 
 /**
  * A native <select> can't visually reflect a controlled `value` that has no
@@ -54,11 +59,33 @@ function withSelectedOptionVisible(
   return [...options, { value: selectedId, label: known?.name ?? selectedId }];
 }
 
-export function ScenarioForm() {
-  const { selection, updateSelection, commitSelection } = useScenarioSelection();
-  const teams = useTeams(SEASON);
-  const seasonPlayers = useSeasonPlayers(SEASON);
-  const teamRoster = useTeamRoster(SEASON, selection.teamId);
+export interface ScenarioFormProps {
+  /** Defaults to the unprefixed PARAM_KEYS — pass a prefixed map (see
+   *  makePrefixedParamKeys) to run a second, independent instance on the
+   *  same page (the comparison view, decision 0012). */
+  paramKeys?: ParamKeys;
+  /** Namespaces the commit-history hash fragment so two instances on one
+   *  page can't collide on the same "#committed-N" (see
+   *  use-scenario-selection.ts's module doc comment). */
+  hashPrefix?: string;
+  /** Optional heading shown above the fields — e.g. "Scenario A" on the
+   *  comparison view. Omitted on the single-scenario page. */
+  heading?: string;
+}
+
+export function ScenarioForm({ paramKeys = PARAM_KEYS, hashPrefix, heading }: ScenarioFormProps = {}) {
+  const { selection, updateSelection, commitSelection } = useScenarioSelection(
+    paramKeys,
+    hashPrefix,
+  );
+  // Namespaces every field/status DOM id so two instances on one page (the
+  // comparison view, decision 0012) never produce duplicate ids.
+  const idPrefix = hashPrefix ? `${hashPrefix}-` : "";
+  const statusRegionId = hashPrefix ? `${hashPrefix}-${DEFAULT_STATUS_REGION_ID}` : DEFAULT_STATUS_REGION_ID;
+  const season = selection.season ?? DEFAULT_SEASON;
+  const teams = useTeams(season);
+  const seasonPlayers = useSeasonPlayers(season);
+  const teamRoster = useTeamRoster(season, selection.teamId);
 
   const [submission, setSubmission] = useState<SubmissionState>({ status: "idle" });
   // The provider actually submitted with the current successViewModel — snapshotted
@@ -70,12 +97,12 @@ export function ScenarioForm() {
   );
   const abortRef = useRef<AbortController | null>(null);
 
-  // Season is locked to its one supported value — normalize it into the URL
-  // on first load if absent, so a shared link always shows it explicitly.
-  // This is an edit (router.replace via updateSelection), not a submission.
+  // Default the season into the URL on first load if absent, so a shared
+  // link always shows it explicitly. This is an edit (router.replace via
+  // updateSelection), not a submission.
   useEffect(() => {
     if (selection.season === null) {
-      updateSelection({ season: SEASON });
+      updateSelection({ season: DEFAULT_SEASON });
     }
     // Intentionally only on mount: re-running this whenever `selection`
     // changes would fight the user's own edits.
@@ -155,8 +182,8 @@ export function ScenarioForm() {
   const loading = submission.status === "loading";
 
   function handleStartOver() {
-    // Season is left untouched — it's the one locked, always-set field, not
-    // something "start over" clears (there's nowhere else for it to go).
+    // Season is left untouched — "start over" clears the swap selections,
+    // not the season context they're being chosen within.
     updateSelection({
       teamId: null,
       playerOutId: null,
@@ -216,24 +243,22 @@ export function ScenarioForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate aria-describedby={STATUS_REGION_ID} className={styles.form}>
+    <form onSubmit={handleSubmit} noValidate aria-describedby={statusRegionId} className={styles.form}>
+      {heading ? <h2 className={styles.formHeading}>{heading}</h2> : null}
       <div className={styles.grid}>
-        {/* Static text, not a disabled <select> with one option — a disabled
-         *  select still looks clickable and invites a pointless click when
-         *  (as in this MVP) there is only ever one possible value. */}
-        <div className={styles.field}>
-          <span id="season-label" className={styles.label}>
-            Season
-          </span>
-          <p aria-labelledby="season-label" aria-describedby="season-help" className={styles.select}>
-            {SEASON}
-          </p>
-          <p id="season-help" className={styles.help}>
-            Only the 2014-15 season is available in this historical dataset.
-          </p>
-        </div>
         <ScenarioField
-          id="team"
+          id={`${idPrefix}season`}
+          label="Season"
+          value={selection.season}
+          onChange={(value) => updateSelection({ season: value as (typeof SUPPORTED_SEASONS)[number] })}
+          options={SUPPORTED_SEASONS.map((label) => ({ value: label, label }))}
+          disabled={loading}
+          placeholder="Select a season"
+          helpText="Historical seasons only — no current-season or live data."
+          required
+        />
+        <ScenarioField
+          id={`${idPrefix}team`}
           label="Team"
           value={selection.teamId}
           onChange={(value) => updateSelection({ teamId: value })}
@@ -248,7 +273,7 @@ export function ScenarioForm() {
           required
         />
         <ScenarioField
-          id="player-out"
+          id={`${idPrefix}player-out`}
           label="Player to remove"
           value={selection.playerOutId}
           onChange={(value) => updateSelection({ playerOutId: value })}
@@ -274,7 +299,7 @@ export function ScenarioForm() {
           required
         />
         <ScenarioField
-          id="player-in"
+          id={`${idPrefix}player-in`}
           label="Player to add"
           value={selection.playerInId}
           onChange={(value) => updateSelection({ playerInId: value })}
@@ -287,7 +312,7 @@ export function ScenarioForm() {
                 ? "Loading players…"
                 : "Select a player"
           }
-          helpText="Any 2014-15 player from any team, except this team's current roster."
+          helpText={`Any ${season} player from any team, except this team's current roster.`}
           errorText={
             samePlayerInvalid
               ? "Choose a different player than the one being removed."
@@ -298,7 +323,7 @@ export function ScenarioForm() {
           required
         />
         <ScenarioField
-          id="provider"
+          id={`${idPrefix}provider`}
           label="Contribution provider"
           value={selection.contributionProvider}
           onChange={(value) =>
@@ -329,7 +354,7 @@ export function ScenarioForm() {
         </button>
       </div>
 
-      <ScenarioStatus id={STATUS_REGION_ID} state={submission} />
+      <ScenarioStatus id={statusRegionId} state={submission} />
 
       {successViewModel && submittedProvider ? (
         <ScenarioSuccessPreview
@@ -340,6 +365,7 @@ export function ScenarioForm() {
           playerLabel={playerLabel}
           contributionProvider={submittedProvider}
           stale={resultStale}
+          idPrefix={idPrefix}
         />
       ) : null}
     </form>
