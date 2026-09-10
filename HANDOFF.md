@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-07-27
+**Last updated:** 2026-09-10
 
 ---
 
@@ -491,6 +491,19 @@ Ruff and mypy both clean.
 
 ## Known gotchas / non-obvious facts worth remembering
 
+- **On this Windows/OneDrive checkout, a branch switch that changes a
+  tracked path's casing (`Backend/` → `backend/`) can silently write the
+  new tree's files into the old-cased folder instead of a fresh one** —
+  the filesystem is case-insensitive so `git status` stays clean, but old
+  *ignored* leftovers (`venv/`, `node_modules/`, `__pycache__/`) in that
+  folder never get cleaned up. The only symptom is a `ModuleNotFoundError`
+  in `pytest` (Python's import system is case-sensitive against
+  `os.scandir()` even here); `ruff`/`mypy` won't catch it. Fix: `ls` the
+  repo root to check physical casing, delete the ignored cruft, then
+  two-hop rename (`mv Backend Backend__tmp && mv Backend__tmp backend`) —
+  a direct rename is a no-op on a case-insensitive filesystem. Full
+  account: "Repository reconciliation" section above (2026-09-10).
+
 - **"Parallel worktrees" isn't always true — check `git worktree list`, not
   just `git branch -a`.** Discovered 2026-07-25: at the time this session
   started, `step8-backend-detail-endpoints` really was isolated in its own
@@ -666,6 +679,68 @@ concretely requires (a public deployed URL vs. a clean private repo)
 before deciding between UI-005/step 6/step 8. **That question was asked
 and answered later the same day: not deploying for now** — see "Portfolio
 Roadmap" above, which is the current, binding answer.
+
+## Repository reconciliation, branch cleanup, and a Windows case-collision bug (2026-09-10)
+
+A different local clone of this project's remote (`origin/main`) had
+drifted onto a completely unrelated codebase — a separate, unrelated
+win-probability-predictor prototype (`Backend/main.py` + `train.py`,
+logistic regression/XGBoost) with no shared git ancestor, committed under
+the same local working directory this project uses. That prototype's full
+history (including a since-purged 298MB accidentally-committed `venv/`)
+is preserved on `origin/archive/nba-predictor-prototype` for reference;
+it is not part of this project and should not be merged into `main`.
+
+Separately, `main` was fast-forwarded from `47e1471` (stale, pre-FastAPI)
+to `frontend-tech-debt`'s tip (`5292a47`, through Step 8) — `main` had
+simply never been updated as feature branches progressed. The
+`step8-backend-detail-endpoints` branch was deleted: it shared identical
+`backend/api/*` commits with `frontend-tech-debt` and added nothing
+`frontend-tech-debt` didn't already have.
+
+**New gotcha found during this reconciliation** (added to "Known gotchas"
+below too): switching branches on this Windows/OneDrive checkout when a
+tracked path's *casing* changes (old `Backend/`/`Frontend/` → new
+`backend/`/`frontend/`) does not error, but git checkout also won't delete
+old *ignored* files (`venv/`, `node_modules/`, `__pycache__/`) sitting in
+the old-cased folder — because the filesystem is case-insensitive, the new
+lowercase tree's files get silently written *into* the old-cased folder
+alongside that leftover cruft, and `git status` shows clean throughout
+(git thinks it wrote `backend/...`, the OS thinks that's the same place as
+`Backend/...`). The only visible symptom was `ModuleNotFoundError: No
+module named 'backend'` in `pytest` (Python's import system does a
+case-sensitive match against `os.scandir()` results even on a
+case-insensitive filesystem) — `mypy`/`ruff` didn't catch it since they
+type-check file paths directly rather than importing. Fixed by deleting
+the leftover ignored cruft, then renaming the directories via a two-hop
+`mv Backend Backend__tmp && mv Backend__tmp backend` (a direct
+`mv Backend backend` is a no-op on a case-insensitive filesystem). If a
+future session hits a mystery `ModuleNotFoundError` after a branch switch
+on this machine, check physical directory casing (`ls`) before assuming
+the code is broken.
+
+**Raw RAPTOR data snapshot is gitignored and was missing on this clone**
+(only `data/raw/**/manifest.json` is tracked, per data-rules — the CSVs
+themselves aren't committed). Re-fetched `historical_RAPTOR_by_player.csv`,
+`modern_RAPTOR_by_player.csv`, `historical_RAPTOR_by_team.csv`,
+`modern_RAPTOR_by_team.csv`, `README.md`, and
+`LICENSE_fivethirtyeight_data` via `curl` from the pinned commit URL in
+`data/raw/fivethirtyeight-nba-raptor/2026-07-19/manifest.json`; all six
+verified byte-for-byte against the manifest's `sha256`/`bytes` fields.
+The `nba-elo` snapshot was **not** re-fetched — nothing in `backend/`
+reads it yet (see "What's actually built" above), so it wasn't needed to
+get the test suite green. A fresh clone on any machine will need this same
+re-fetch step; there is no automated fetch script yet (retrieval has
+always been manual `curl`, per the manifest's own `retrieval_method`).
+
+After all of the above: `uv run ruff check .` / `uv run mypy` / `uv run
+pytest -q` all clean (149 passed), and `pnpm typecheck` / `pnpm lint` /
+`pnpm test` all clean (162 passed) — confirming HANDOFF's Step 8 test
+counts still hold. `pnpm build` was not run this session. `pnpm` itself
+isn't installed globally on this machine; `npx pnpm@11.15.1` (the version
+pinned in `frontend/package.json`'s `packageManager` field) works without
+needing admin rights, unlike `corepack enable` (fails with `EPERM` writing
+to `C:\Program Files\nodejs` without elevation).
 
 ## Exact next task
 
