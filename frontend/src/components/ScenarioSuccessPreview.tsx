@@ -24,6 +24,11 @@ export interface ScenarioSuccessPreviewProps {
    *  result was actually computed from (design-review finding: a stale result
    *  stayed on screen with no visual cue after a field changed post-submit). */
   stale: boolean;
+  /** Namespaces this section's internal heading ids so two instances can
+   *  coexist on one page without duplicate `aria-labelledby` targets (the
+   *  comparison view, decision 0012). Defaults to unprefixed — same
+   *  behavior as before this prop existed. */
+  idPrefix?: string;
 }
 
 /**
@@ -42,13 +47,14 @@ export function ScenarioSuccessPreview({
   playerLabel,
   contributionProvider,
   stale,
+  idPrefix = "",
 }: ScenarioSuccessPreviewProps) {
   return (
     <section
       className={stale ? `${styles.successPreview} ${styles.stalePreview}` : styles.successPreview}
-      aria-labelledby="results-heading"
+      aria-labelledby={`${idPrefix}results-heading`}
     >
-      <h2 id="results-heading">Scenario result</h2>
+      <h2 id={`${idPrefix}results-heading`}>Scenario result</h2>
       {stale ? (
         <p className={styles.staleNotice} role="status">
           Your selections have changed — this result no longer matches them. Run the scenario
@@ -106,19 +112,24 @@ export function ScenarioSuccessPreview({
         viewModel={viewModel}
         contributionProvider={contributionProvider}
         playerLabel={playerLabel}
+        idPrefix={idPrefix}
       />
 
-      <section className={styles.resultSection} aria-labelledby="factors-heading">
-        <h3 id="factors-heading">What changed</h3>
+      <section className={styles.resultSection} aria-labelledby={`${idPrefix}factors-heading`}>
+        <h3 id={`${idPrefix}factors-heading`}>What changed</h3>
         <ExplanationFactorsList factors={viewModel.explanationFactors} />
       </section>
 
-      <section className={styles.resultSection} aria-labelledby="team-profile-heading">
-        <h3 id="team-profile-heading">Team profile</h3>
+      <section className={styles.resultSection} aria-labelledby={`${idPrefix}team-profile-heading`}>
+        <h3 id={`${idPrefix}team-profile-heading`}>Team profile</h3>
         <TeamProfilePanel categories={viewModel.teamProfile} />
       </section>
 
-      <ScenarioDisclosuresPanel disclosures={viewModel.disclosures} season={viewModel.season} />
+      <ScenarioDisclosuresPanel
+        disclosures={viewModel.disclosures}
+        season={viewModel.season}
+        idPrefix={idPrefix}
+      />
     </section>
   );
 }

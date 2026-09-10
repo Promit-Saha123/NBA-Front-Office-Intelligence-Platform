@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { useScenarioSelection } from "./use-scenario-selection";
-import { parseScenarioSelection } from "./url-state";
+import { makePrefixedParamKeys, parseScenarioSelection } from "./url-state";
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
@@ -120,5 +120,50 @@ describe("useScenarioSelection — commitSelection history-entry bug (ADR 0008)"
     expect(parseScenarioSelection(new URLSearchParams(window.location.search)).teamId).toBe(
       "GSW",
     );
+  });
+});
+
+describe("useScenarioSelection — two independent instances (comparison view, decision 0012)", () => {
+  it("updating side A does not drop side B's already-set params", () => {
+    const keysA = makePrefixedParamKeys("a");
+    const keysB = makePrefixedParamKeys("b");
+    const { result: a } = renderHook(() => useScenarioSelection(keysA, "a"));
+    const { result: b } = renderHook(() => useScenarioSelection(keysB, "b"));
+
+    act(() => {
+      b.current.updateSelection({ teamId: "BOS" });
+    });
+    act(() => {
+      a.current.updateSelection({ teamId: "GSW" });
+    });
+
+    expect(window.location.search).toContain("a_team_id=GSW");
+    expect(window.location.search).toContain("b_team_id=BOS");
+  });
+
+  it("each side's commit produces a distinct hash even when both fire in sequence", () => {
+    const keysA = makePrefixedParamKeys("a");
+    const keysB = makePrefixedParamKeys("b");
+    const { result: a } = renderHook(() => useScenarioSelection(keysA, "a"));
+    const { result: b } = renderHook(() => useScenarioSelection(keysB, "b"));
+
+    act(() => {
+      a.current.updateSelection({ teamId: "GSW" });
+      a.current.commitSelection();
+    });
+    const hashAfterA = window.location.hash;
+
+    act(() => {
+      b.current.updateSelection({ teamId: "BOS" });
+      b.current.commitSelection();
+    });
+    const hashAfterB = window.location.hash;
+
+    expect(hashAfterA).toBe("#a-1");
+    expect(hashAfterB).toBe("#b-1");
+    expect(hashAfterB).not.toBe(hashAfterA);
+    // Both sides' query params survive both commits.
+    expect(window.location.search).toContain("a_team_id=GSW");
+    expect(window.location.search).toContain("b_team_id=BOS");
   });
 });

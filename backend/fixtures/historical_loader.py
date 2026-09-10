@@ -4,7 +4,7 @@ Loads only the local pinned snapshot audited in
 docs/data-audits/fivethirtyeight-raptor-audit.md. No network access; raw
 source files under data/raw/ are read, never modified.
 
-Only the 2014-15 regular season is supported in this slice. Team-outcome data
+Only the regular seasons in SUPPORTED_SEASON_LABELS are supported. Team-outcome data
 (nba-elo) is deliberately not loaded here: no domain model in the free-MVP
 scenario slice needs wins/losses, and win conversion is not yet an approved
 methodology (decision 0007 §10). A future slice that adds win conversion will
@@ -38,7 +38,7 @@ from backend.domain.models import (
     parse_season_label,
 )
 
-SUPPORTED_SEASON_LABELS = frozenset({"2014-15"})
+SUPPORTED_SEASON_LABELS = frozenset({"2014-15", "2015-16"})
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RAPTOR_SNAPSHOT_DIR = (

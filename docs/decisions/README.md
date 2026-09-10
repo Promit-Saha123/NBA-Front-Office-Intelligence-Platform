@@ -68,3 +68,17 @@ and re-evaluation triggers.
   `get_player_profile()`; a new `TeamProfilePanel.tsx` renders it, always
   labeled `descriptive_interpretation` and never feeding win/contribution
   math (2026-07-23).
+* [0011 — Second Historical Season](0011-second-historical-season.md) —
+  **Accepted**: adds 2015-16 (identical team codes to 2014-15, no crosswalk
+  needed) as a second supported season; `AppState` becomes season-keyed
+  (`dict[str, HistoricalSeasonData]` etc.), loaded once at startup for both
+  seasons; every route resolves its season slice via a small
+  `_season_state()` lookup (2026-09-10).
+* [0012 — Scenario Comparison View](0012-scenario-comparison-view.md) —
+  **Accepted**: new `/compare` route renders two fully independent
+  scenario selections (any season/team/players/provider per side) side by
+  side; `url-state.ts`/`use-scenario-selection.ts` parameterized by a
+  `paramKeys`/`hashPrefix` pair so one side's URL update can't drop the
+  other's params and commit-history hashes can't collide; every result
+  component gained an optional `idPrefix` to avoid duplicate DOM ids when
+  two instances render at once (2026-09-10).
