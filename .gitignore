@@ -5,6 +5,8 @@ __pycache__/
 # Environment
 .env.local
 .env
+venv/
+.venv/
 
 # Data & models (generated artifacts)
 Backend/backend/data/raw/*.csv
