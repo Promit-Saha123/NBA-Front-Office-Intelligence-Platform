@@ -7,7 +7,12 @@ import userEvent from "@testing-library/user-event";
 // Next.js App Router test utility exists) — extended with a static
 // useParams() since these pages read the route param that way.
 const routerMocks = vi.hoisted(() => {
-  let search = "";
+  // Every test's fixture data (CURRY, below) is season "2014-15" — the URL
+  // starts pinned to that explicitly so assertions don't depend on
+  // DEFAULT_SEASON's value (which is the *most recent* supported season,
+  // not a fixed one — see url-state.ts). The one test that actually
+  // exercises the default-season fallback overrides this itself.
+  let search = "season=2014-15";
   const listeners = new Set<() => void>();
   return {
     getSearch: () => search,
@@ -21,8 +26,8 @@ const routerMocks = vi.hoisted(() => {
     },
     replace: vi.fn(),
     reset: () => {
-      search = "";
-      window.history.replaceState(null, "", "/players/curryst01");
+      search = "season=2014-15";
+      window.history.replaceState(null, "", "/players/curryst01?season=2014-15");
       routerMocks.replace.mockClear();
     },
   };
@@ -47,6 +52,7 @@ vi.mock("@/lib/api/detail", () => detailMocks);
 
 import { PlayerDetailView } from "./PlayerDetailView";
 import { ScenarioApiError, messageForErrorCode } from "@/lib/api/errors";
+import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { PlayerDetailResponse } from "@/lib/api/detail";
 
 const CURRY: PlayerDetailResponse = {
@@ -167,14 +173,16 @@ describe("PlayerDetailView", () => {
   });
 
   it("falls back to the default season when ?season= is absent or unsupported", async () => {
-    detailMocks.getPlayerDetail.mockResolvedValue(CURRY);
-    window.history.replaceState(null, "", "/players/curryst01?season=1999-00"); // not in SUPPORTED_SEASONS
-    routerMocks.setSearch("season=1999-00");
+    detailMocks.getPlayerDetail.mockResolvedValue({ ...CURRY, season: DEFAULT_SEASON });
+    // 2022-23 is real but outside SUPPORTED_SEASON_LABELS (the pinned
+    // snapshot's RS data ends at 2021-22 — decision 0015).
+    window.history.replaceState(null, "", "/players/curryst01?season=2022-23");
+    routerMocks.setSearch("season=2022-23");
     render(<PlayerDetailView />);
 
     await screen.findByRole("heading", { level: 1, name: "Stephen Curry" });
     expect(detailMocks.getPlayerDetail).toHaveBeenCalledWith(
-      "2014-15",
+      DEFAULT_SEASON,
       "curryst01",
       "historical_benchmark",
       expect.anything(),

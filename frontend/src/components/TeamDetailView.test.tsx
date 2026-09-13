@@ -15,6 +15,7 @@ vi.mock("@/lib/api/detail", () => detailMocks);
 
 import { TeamDetailView } from "./TeamDetailView";
 import { ScenarioApiError, messageForErrorCode } from "@/lib/api/errors";
+import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { TeamDetailResponse } from "@/lib/api/detail";
 
 const WARRIORS: TeamDetailResponse = {
@@ -30,7 +31,11 @@ const WARRIORS: TeamDetailResponse = {
 
 beforeEach(() => {
   detailMocks.getTeamDetail.mockReset();
-  searchMocks.search = "";
+  // Every fixture here (WARRIORS) is season "2014-15" — pinned explicitly so
+  // assertions don't depend on DEFAULT_SEASON's value (the *most recent*
+  // supported season, not a fixed one — see url-state.ts). The one test that
+  // actually exercises the default-season fallback overrides this itself.
+  searchMocks.search = "season=2014-15";
 });
 
 describe("TeamDetailView", () => {
@@ -83,11 +88,13 @@ describe("TeamDetailView", () => {
   });
 
   it("falls back to the default season when ?season= is absent or unsupported", async () => {
-    detailMocks.getTeamDetail.mockResolvedValue(WARRIORS);
-    searchMocks.search = "season=1999-00"; // not in SUPPORTED_SEASONS
+    detailMocks.getTeamDetail.mockResolvedValue({ ...WARRIORS, season: DEFAULT_SEASON });
+    // 2022-23 is real but outside SUPPORTED_SEASON_LABELS (the pinned
+    // snapshot's RS data ends at 2021-22 — decision 0015).
+    searchMocks.search = "season=2022-23";
     render(<TeamDetailView />);
 
     await screen.findByRole("heading", { level: 1, name: "Golden State Warriors" });
-    expect(detailMocks.getTeamDetail).toHaveBeenCalledWith("2014-15", "GSW", expect.anything());
+    expect(detailMocks.getTeamDetail).toHaveBeenCalledWith(DEFAULT_SEASON, "GSW", expect.anything());
   });
 });

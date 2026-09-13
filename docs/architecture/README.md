@@ -134,23 +134,37 @@ network access.
 
 ### Fixture loader
 
-`backend.fixtures.historical_loader.load_historical_season("2014-15")` reads
-only `data/raw/fivethirtyeight-nba-raptor/2026-07-19/` (manifest + the two
-`historical_RAPTOR_by_*.csv` files) — no network access, raw files untouched.
-Team rosters/stints come from `historical_RAPTOR_by_team.csv` filtered to
-`season_type == "RS"`; contribution values come from
+`backend.fixtures.historical_loader.load_historical_season(season_label)`
+reads only `data/raw/fivethirtyeight-nba-raptor/2026-07-19/` (manifest + the
+two `historical_RAPTOR_by_*.csv` files) — no network access, raw files
+untouched. Team rosters/stints come from `historical_RAPTOR_by_team.csv`
+filtered to `season_type == "RS"`; contribution values come from
 `historical_RAPTOR_by_player.csv`'s `raptor_total` column, which is a
 **season-blended (regular season + playoffs) value exactly as FiveThirtyEight
-publishes it** — no custom aggregation is applied. Only `2014-15` is
-supported; every other season raises `UnsupportedSeasonError`.
+publishes it** — no custom aggregation is applied.
+
+`SUPPORTED_SEASON_LABELS` covers **all 46 RS seasons the pinned snapshot has
+complete rows for, 1976-77 through 2021-22** (decision 0015) — every other
+season label raises `UnsupportedSeasonError`. The manifest read and both
+CSV parses are cached per `snapshot_dir` (`functools.cache` on a private
+`_load_source_frames()` helper) so the FastAPI startup loop's 46 calls to
+`load_historical_season()` read each multi-decade CSV from disk once, not
+46 times — `load_historical_season()`'s own public signature and behavior
+are unchanged. Team codes drift across this range (relocations, renames,
+defunct franchises — 42 distinct codes total; only 2013-14 onward matches
+today's 30 codes exactly), which is why the frontend's `nba-teams.ts` is
+season-aware, not a flat code→name map (decision 0015).
 
 **nba-elo is deliberately not loaded by this slice.** No required domain
 model needs team wins/losses, and win conversion is not an approved
-methodology (decision 0007 §10), so integrating it now would be premature. If
-a future slice adds win conversion, note the one team-code mismatch between
-the two pinned snapshots: RAPTOR uses `"CHA"` for the Charlotte Hornets in
-2014-15, nba-elo uses `"CHO"` — verified directly against both CSVs, not
-previously documented in either audit.
+methodology (decision 0007 §10), so integrating it now would be premature.
+Its own coverage (1947-2015, per its audit) is also narrower than RAPTOR's
+46-season range, so wiring it in later needs its own scope decision, not an
+assumption that every RAPTOR-supported season has matching Elo data. If a
+future slice adds win conversion, note the one team-code mismatch already
+found between the two pinned snapshots: RAPTOR uses `"CHA"` for the
+Charlotte Hornets/Bobcats since 2004-05, nba-elo uses `"CHO"` — verified
+directly against both CSVs, not previously documented in either audit.
 
 ### ContributionProvider
 

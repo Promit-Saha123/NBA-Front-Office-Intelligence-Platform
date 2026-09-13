@@ -4,17 +4,19 @@ Loads only the local pinned snapshot audited in
 docs/data-audits/fivethirtyeight-raptor-audit.md. No network access; raw
 source files under data/raw/ are read, never modified.
 
-Only the regular seasons in SUPPORTED_SEASON_LABELS are supported. Team-outcome data
-(nba-elo) is deliberately not loaded here: no domain model in the free-MVP
-scenario slice needs wins/losses, and win conversion is not yet an approved
-methodology (decision 0007 §10). A future slice that adds win conversion will
-need a small team-code crosswalk — RAPTOR uses "CHA" for the Charlotte
-Hornets in 2014-15, nba-elo uses "CHO" — documented here so it is not
-rediscovered from scratch.
+Only the regular seasons in SUPPORTED_SEASON_LABELS are supported — every RS
+season the pinned snapshot has complete team/player rows for, 1976-77 through
+2021-22 (decision 0015). Team-outcome data (nba-elo) is deliberately not
+loaded here: no domain model in the free-MVP scenario slice needs wins/
+losses, and win conversion is not yet an approved methodology (decision 0007
+§10). A future slice that adds win conversion will need a small team-code
+crosswalk — RAPTOR uses "CHA" for the Charlotte Hornets/Bobcats since 2004-05,
+nba-elo uses "CHO" — documented here so it is not rediscovered from scratch.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -38,7 +40,12 @@ from backend.domain.models import (
     parse_season_label,
 )
 
-SUPPORTED_SEASON_LABELS = frozenset({"2014-15", "2015-16"})
+# Every RS season with complete team/player rows in the pinned snapshot
+# (decision 0015) — verified directly against historical_RAPTOR_by_team.csv's
+# own season/season_type columns, not assumed from the source's stated range.
+SUPPORTED_SEASON_LABELS = frozenset(
+    {f"{end_year - 1}-{str(end_year)[-2:]}" for end_year in range(1977, 2023)}
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RAPTOR_SNAPSHOT_DIR = (
@@ -86,6 +93,52 @@ class HistoricalSeasonData:
     source_license: str
 
 
+@dataclass(frozen=True)
+class _SourceFrames:
+    """The pinned snapshot's manifest fields plus both parsed CSVs.
+
+    Cached per snapshot_dir by _load_source_frames() below: with
+    SUPPORTED_SEASON_LABELS now covering 46 seasons (decision 0015), reading
+    and parsing both multi-decade CSVs from disk on every single-season call
+    (as this loader did when there were only 1-2 supported seasons) would
+    mean the FastAPI startup loop re-reads the same ~50k-row files from disk
+    once per season. The raw snapshot is immutable for the life of a process
+    (data-rules: raw snapshots are never overwritten), so caching this by
+    path is safe.
+    """
+
+    by_team: pd.DataFrame
+    by_player: pd.DataFrame
+    data_version: str
+    attribution: str
+    source_license: str
+
+
+@functools.cache
+def _load_source_frames(snapshot_dir: Path) -> _SourceFrames:
+    manifest = _read_manifest(snapshot_dir / "manifest.json")
+    data_version = _require_manifest_field(manifest, "data_version", snapshot_dir)
+    if data_version != EXPECTED_RAPTOR_DATA_VERSION:
+        raise IncompatibleDataVersionError(
+            f"Expected RAPTOR data version {EXPECTED_RAPTOR_DATA_VERSION!r}, "
+            f"found {data_version!r} in {snapshot_dir / 'manifest.json'}"
+        )
+    attribution = _require_manifest_field(manifest, "attribution", snapshot_dir)
+    source_license = _require_manifest_field(manifest, "license", snapshot_dir)
+
+    by_team = _read_csv(snapshot_dir / "historical_RAPTOR_by_team.csv", _BY_TEAM_REQUIRED_COLUMNS)
+    by_player = _read_csv(
+        snapshot_dir / "historical_RAPTOR_by_player.csv", _BY_PLAYER_REQUIRED_COLUMNS
+    )
+    return _SourceFrames(
+        by_team=by_team,
+        by_player=by_player,
+        data_version=data_version,
+        attribution=attribution,
+        source_license=source_license,
+    )
+
+
 def load_historical_season(
     season_label: str,
     snapshot_dir: Path = DEFAULT_RAPTOR_SNAPSHOT_DIR,
@@ -105,24 +158,11 @@ def load_historical_season(
     except ValueError as exc:
         raise UnsupportedSeasonError(str(exc)) from exc
 
-    manifest = _read_manifest(snapshot_dir / "manifest.json")
-    data_version = _require_manifest_field(manifest, "data_version", snapshot_dir)
-    if data_version != EXPECTED_RAPTOR_DATA_VERSION:
-        raise IncompatibleDataVersionError(
-            f"Expected RAPTOR data version {EXPECTED_RAPTOR_DATA_VERSION!r}, "
-            f"found {data_version!r} in {snapshot_dir / 'manifest.json'}"
-        )
-    attribution = _require_manifest_field(manifest, "attribution", snapshot_dir)
-    source_license = _require_manifest_field(manifest, "license", snapshot_dir)
+    frames = _load_source_frames(snapshot_dir)
 
-    by_team = _read_csv(snapshot_dir / "historical_RAPTOR_by_team.csv", _BY_TEAM_REQUIRED_COLUMNS)
-    by_player = _read_csv(
-        snapshot_dir / "historical_RAPTOR_by_player.csv", _BY_PLAYER_REQUIRED_COLUMNS
-    )
-
-    rosters = _build_rosters(by_team, season)
+    rosters = _build_rosters(frames.by_team, season)
     player_seasons, contribution_values, offense_values, defense_values = _build_player_seasons(
-        by_player, season
+        frames.by_player, season
     )
 
     return HistoricalSeasonData(
@@ -132,9 +172,9 @@ def load_historical_season(
         contribution_values=contribution_values,
         offense_values=offense_values,
         defense_values=defense_values,
-        data_version=data_version,
-        attribution=attribution,
-        source_license=source_license,
+        data_version=frames.data_version,
+        attribution=frames.attribution,
+        source_license=frames.source_license,
     )
 
 
