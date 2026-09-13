@@ -11,7 +11,10 @@ contribution-value change is calculated.
 
 from __future__ import annotations
 
+import dataclasses
+
 from backend.domain.errors import (
+    InvalidCustomRosterError,
     InvalidRosterError,
     PlayerAlreadyOnRosterError,
     PlayerNotFoundError,
@@ -21,7 +24,10 @@ from backend.domain.errors import (
     UnsupportedSeasonError,
 )
 from backend.domain.models import (
+    CustomRosterRequest,
+    CustomRosterResult,
     EpistemicType,
+    RosterProfileCategory,
     RosterScenarioRequest,
     RosterScenarioResult,
     RotationEntry,
@@ -40,6 +46,8 @@ from backend.providers.base import ContributionProvider
 
 MINUTES_METHOD = "heuristic-v1"
 _DIRECTION_TOLERANCE = 1e-9
+# Matches the reference roster-builder UI's full-board requirement (decision 0014).
+CUSTOM_ROSTER_SIZE = 12
 
 
 class RosterScenarioService:
@@ -199,6 +207,103 @@ class RosterScenarioService:
             attribution=(provider.get_attribution(),),
             model_version=None,
         )
+
+    def build_custom_roster(
+        self, request: CustomRosterRequest, provider: ContributionProvider
+    ) -> CustomRosterResult:
+        self._validate_season(request.season_label)
+        self._validate_custom_roster_size_and_uniqueness(request.player_ids)
+        for player_id in request.player_ids:
+            self._validate_incoming_exists(player_id)
+
+        weights = {
+            pid: self._season_data.player_seasons[pid].minutes for pid in request.player_ids
+        }
+        contribution_values = {
+            pid: provider.get_player_contribution(pid, request.season_label)
+            for pid in request.player_ids
+        }
+        profiles = {
+            pid: provider.get_player_profile(pid, request.season_label)
+            for pid in request.player_ids
+        }
+        offense_values = {pid: p.offensive_impact for pid, p in profiles.items()}
+        defense_values = {pid: p.defensive_impact for pid, p in profiles.items()}
+
+        if request.manual_minutes is not None:
+            entries = apply_manual_minutes(
+                request.manual_minutes, frozenset(request.player_ids), self._minutes_config
+            )
+            repairs: tuple[str, ...] = ()
+            source = "manual"
+        else:
+            # maximum_rotation_size exists to cap an ambient pool that can be
+            # larger than a realistic playing rotation (a real team roster,
+            # possibly 15+ players) — but a custom roster's input *is* the
+            # target size (exactly CUSTOM_ROSTER_SIZE, already validated
+            # above), so there is no larger pool to cap further. Using
+            # self._minutes_config's cap unmodified here (shared with
+            # build_scenario's real-team rosters) would silently drop
+            # explicitly-selected players purely because their real
+            # season-total minutes ranked them last, contradicting the
+            # premise that every selected player is part of the roster.
+            custom_roster_config = self._minutes_config
+            if custom_roster_config.maximum_rotation_size < len(request.player_ids):
+                custom_roster_config = dataclasses.replace(
+                    custom_roster_config, maximum_rotation_size=len(request.player_ids)
+                )
+            allocation = allocate_minutes(weights, custom_roster_config)
+            entries = allocation.entries
+            repairs = allocation.repairs
+            source = "heuristic"
+
+        total_minutes = self._minutes_config.total_team_minutes
+        contribution = _minutes_weighted_contribution(entries, contribution_values, total_minutes)
+        team_profile = (
+            RosterProfileCategory(
+                category="offensive_impact",
+                value=_minutes_weighted_contribution(entries, offense_values, total_minutes),
+                epistemic_type=EpistemicType.DESCRIPTIVE_INTERPRETATION,
+            ),
+            RosterProfileCategory(
+                category="defensive_impact",
+                value=_minutes_weighted_contribution(entries, defense_values, total_minutes),
+                epistemic_type=EpistemicType.DESCRIPTIVE_INTERPRETATION,
+            ),
+        )
+
+        return CustomRosterResult(
+            season_label=request.season_label,
+            player_ids=request.player_ids,
+            rotation=entries,
+            contribution=contribution,
+            provider_type=provider.get_provider_type(),
+            provider_version=provider.get_provider_version(),
+            data_version=provider.get_data_version(),
+            contribution_epistemic_type=provider.get_epistemic_type(),
+            minutes_method=MINUTES_METHOD,
+            minutes_assumptions={
+                "editable": True,
+                "validated": False,
+                "total_minutes": total_minutes,
+                "maximum_player_minutes": self._minutes_config.max_player_minutes,
+                "scenario_source": source,
+            },
+            allocation_repairs=repairs,
+            team_profile=team_profile,
+            historical_only=True,
+            attribution=(provider.get_attribution(),),
+            model_version=None,
+        )
+
+    def _validate_custom_roster_size_and_uniqueness(self, player_ids: tuple[str, ...]) -> None:
+        if len(player_ids) != CUSTOM_ROSTER_SIZE:
+            raise InvalidCustomRosterError(
+                f"A custom roster must have exactly {CUSTOM_ROSTER_SIZE} players, "
+                f"got {len(player_ids)}"
+            )
+        if len(set(player_ids)) != len(player_ids):
+            raise InvalidCustomRosterError("A custom roster must not repeat a player_id")
 
     def _validate_season(self, season_label: str) -> None:
         if season_label != self._season_data.season.label:

@@ -183,6 +183,162 @@
         "title": "ProviderType",
         "type": "string"
       },
+      "RosterBuilderRequest": {
+        "description": "POST /custom-rosters \u2014 a from-scratch 12-player roster (decision 0014).\n\nNamed distinctly from backend.domain.models.CustomRosterRequest to avoid\na name collision where both are imported, same convention as\nScenarioRequest/RosterScenarioRequest.",
+        "properties": {
+          "contribution_provider": {
+            "$ref": "#/components/schemas/ContributionProviderChoice"
+          },
+          "manual_minutes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Minutes"
+          },
+          "player_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Player Ids",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          }
+        },
+        "required": [
+          "season",
+          "player_ids",
+          "contribution_provider"
+        ],
+        "title": "RosterBuilderRequest",
+        "type": "object"
+      },
+      "RosterBuilderResponse": {
+        "properties": {
+          "allocation_repairs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allocation Repairs",
+            "type": "array"
+          },
+          "attribution": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "contribution": {
+            "title": "Contribution",
+            "type": "number"
+          },
+          "contribution_epistemic_type": {
+            "$ref": "#/components/schemas/EpistemicType"
+          },
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "historical_only": {
+            "title": "Historical Only",
+            "type": "boolean"
+          },
+          "minutes_assumptions": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Minutes Assumptions",
+            "type": "object"
+          },
+          "minutes_method": {
+            "title": "Minutes Method",
+            "type": "string"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "player_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Player Ids",
+            "type": "array"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "provider_version": {
+            "title": "Provider Version",
+            "type": "string"
+          },
+          "rotation": {
+            "items": {
+              "$ref": "#/components/schemas/RotationEntryResponse"
+            },
+            "title": "Rotation",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "team_profile": {
+            "items": {
+              "$ref": "#/components/schemas/RosterProfileCategoryResponse"
+            },
+            "title": "Team Profile",
+            "type": "array"
+          }
+        },
+        "required": [
+          "season",
+          "player_ids",
+          "rotation",
+          "contribution",
+          "provider_type",
+          "provider_version",
+          "data_version",
+          "contribution_epistemic_type",
+          "minutes_method",
+          "minutes_assumptions",
+          "allocation_repairs",
+          "team_profile",
+          "historical_only",
+          "attribution",
+          "model_version"
+        ],
+        "title": "RosterBuilderResponse",
+        "type": "object"
+      },
       "RosterPlayerResponse": {
         "properties": {
           "minutes": {
@@ -204,6 +360,28 @@
           "minutes"
         ],
         "title": "RosterPlayerResponse",
+        "type": "object"
+      },
+      "RosterProfileCategoryResponse": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "epistemic_type": {
+            "$ref": "#/components/schemas/EpistemicType"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "category",
+          "value",
+          "epistemic_type"
+        ],
+        "title": "RosterProfileCategoryResponse",
         "type": "object"
       },
       "RotationEntryResponse": {
@@ -631,6 +809,44 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/custom-rosters": {
+      "post": {
+        "operationId": "create_custom_roster_custom_rosters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RosterBuilderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterBuilderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Custom Roster"
+      }
+    },
     "/scenarios": {
       "post": {
         "operationId": "create_scenario_scenarios_post",

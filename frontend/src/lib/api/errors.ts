@@ -48,6 +48,7 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   MISSING_CONTRIBUTION: "No contribution value is available for one of the selected players.",
   INVALID_ROTATION: "This roster change can't produce a valid 240-minute rotation.",
   INVALID_MANUAL_MINUTES: "Those minutes aren't valid — check the total and each player's value.",
+  INVALID_CUSTOM_ROSTER: "A custom roster needs exactly 12 different players.",
   [FASTAPI_VALIDATION_ERROR_CODE]: "Check your selections and try again.",
   [NETWORK_ERROR_CODE]: "Could not reach the server. Check your connection and try again.",
   [INVALID_RESPONSE_SHAPE_CODE]: "The server returned an unexpected response.",
