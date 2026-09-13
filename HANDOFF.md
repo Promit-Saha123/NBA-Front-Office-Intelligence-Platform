@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-12
 
 ---
 
@@ -89,29 +89,41 @@ map). No database, no trained model exist.
 
 ## Portfolio Roadmap
 
-**Answered directly by the user (2026-07-21), resolving the Council's open
-question below: this is nowhere close to being deployed via a public URL
-for now.** Do not start deployment work, hosting selection, or a Vercel
-project on your own initiative — treat "not deploying yet" as the current
-answer, not just an unasked question, until the user says otherwise.
+**Deployed (2026-09-12), superseding the "not deploying yet" answer below —
+kept for history, no longer the current state.** The user explicitly asked
+for CI + deployment (see the CI/deployment session note above) before more
+feature work. Both are live:
 
-> The current target is a polished working local application. A public URL
-> is the intended final portfolio outcome, likely using Vercel for the
-> Next.js frontend, but deployment will begin only after the local
-> experience is reviewed and approved.
+* Frontend (Vercel, root directory `frontend`, auto-deploys on push to
+  `main`): https://nba-front-office-intelligence-platf.vercel.app
+* Backend (Render Blueprint, `render.yaml` at repo root, free plan, no
+  database): https://nba-front-office-api.onrender.com — free tier spins
+  down on inactivity, expect a ~50s cold start on the first request after
+  idling
+* `FRONTEND_ORIGINS` (Render) and `NEXT_PUBLIC_API_URL` (Vercel) point at
+  each other's real URLs; verified end-to-end with a real `POST /scenarios`
+  call carrying the production frontend's `Origin` header (Kevin Durant
+  in for David Lee on the 2014-15 Warriors — real rotation, real
+  contribution values, correct CORS response), not just "the page loads."
+* GitHub Actions CI (`.github/workflows/ci.yml`) is required on `main` via
+  branch protection (`backend` + `frontend` status checks) — every PR must
+  pass ruff/mypy/pytest and typecheck/lint/test/build before merge.
+
+**Original answer, preserved for context (2026-07-21):** "this is nowhere
+close to being deployed via a public URL for now... treat 'not deploying
+yet' as the current answer until the user says otherwise." That has now
+been superseded by explicit request — do not revert to treating deployment
+as out of scope.
 
 A clean private repository is acceptable during active development, but it
 is not the final portfolio deliverable. The eventual portfolio-ready
-definition includes: a public frontend URL, a stable public backend, a
-clear README, screenshots or demo media, an architecture explanation,
-methodology and limitations, reproducible setup, and clean repository
-history. None of that beyond the README/setup work has been implemented
-yet — this session deliberately scoped to "make it easy to run and inspect
-locally" plus deployment-readiness *configuration* (env vars, CORS), not
-deployment itself. **Nothing has been deployed, no Vercel project exists,
-and no backend hosting has been selected or provisioned.** Local-only
-development continues; revisit this roadmap only when the user raises
-deployment again.
+definition includes: a public frontend URL ✓, a stable public backend ✓, a
+clear README ✓, screenshots or demo media (not yet done), an architecture
+explanation (partially — `docs/architecture/README.md` exists but isn't
+written for a portfolio-viewer audience), methodology and limitations ✓
+(scattered across decision records, not consolidated), reproducible setup
+✓, and clean repository history (reasonably clean from the reconciliation
+session on 2026-09-10 onward).
 
 ## Local run verification (2026-07-21)
 
