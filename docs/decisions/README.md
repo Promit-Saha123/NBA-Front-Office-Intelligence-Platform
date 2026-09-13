@@ -82,6 +82,14 @@ and re-evaluation triggers.
   other's params and commit-history hashes can't collide; every result
   component gained an optional `idPrefix` to avoid duplicate DOM ids when
   two instances render at once (2026-09-10).
+* [0013 — RAPTOR-Trend Projection Model](0013-raptor-trend-projection-model.md) —
+  **Accepted**: real PCE (decision 0006) is infeasible without box-score
+  data the project doesn't have and can't get without paying or awaiting
+  NBA consent; this is a narrower, honest interim model — XGBoost predicts
+  a player's next-season RAPTOR `raptor_total` from their own multi-season
+  RAPTOR history, backtested (beats a persistence baseline on the held-out
+  2022 test season), versioned, never labeled as PCE or as RAPTOR itself
+  (2026-09-13).
 * [0014 — Roster-Builder Scenario Contract](0014-roster-builder-scenario-contract.md) —
   **Accepted**: a from-scratch 12-player roster builder (`CustomRosterRequest`/
   `CustomRosterResult`, `RosterScenarioService.build_custom_roster()`,
