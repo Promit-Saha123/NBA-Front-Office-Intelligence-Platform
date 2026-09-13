@@ -5,7 +5,7 @@ conversation / starting fresh) to get back up to speed without re-reading the fu
 history. Update it at the end of each work session — see "Keeping this file
 current" at the bottom.
 
-**Last updated:** 2026-09-12
+**Last updated:** 2026-09-13
 
 ---
 
@@ -753,6 +753,66 @@ isn't installed globally on this machine; `npx pnpm@11.15.1` (the version
 pinned in `frontend/package.json`'s `packageManager` field) works without
 needing admin rights, unlike `corepack enable` (fails with `EPERM` writing
 to `C:\Program Files\nodejs` without elevation).
+
+## Beyond the shipped MVP: CI, deployment, and two parallel branches (2026-09-12/13)
+
+Steps 1-9 (through decision 0012's comparison view) are done and merged. The
+user then asked for three things beyond the original build order: (1) CI +
+deployment, (2) a real ML component, (3) a roster-builder frontend redesign.
+
+**CI + deployment (2026-09-12, both done, merged):** GitHub Actions
+(`.github/workflows/ci.yml`, backend + frontend jobs) required on `main` via
+branch protection. Live deployment: frontend on Vercel
+(`https://nba-front-office-intelligence-platf.vercel.app`), backend on
+Render (`https://nba-front-office-api.onrender.com`, free tier, no
+database — nothing uses one), verified end-to-end with a real `POST
+/scenarios` call carrying the production frontend's `Origin` header. See
+"Portfolio Roadmap" above for full detail — this note just cross-references
+it so it's found from this section too.
+
+**ML + roster-builder-ui are being built in parallel, in separate git
+worktrees, by separate Claude Code sessions** (not two things one session
+did sequentially — worth knowing if you're a fresh session picking this up,
+so you don't assume both came from the same continuous train of thought):
+- **`feature/raptor-trend-model`** (this checkout): real PCE (decision 0003)
+  is infeasible without box-score data (decision 0006 — no free/legally-
+  clear source found, only paid-with-permission or NBA-consent paths, both
+  real-world actions outside a coding session). Built instead: an XGBoost
+  model predicting a player's **next-season RAPTOR `raptor_total`** from
+  their own multi-season RAPTOR history — decision 0013, new `ml/` package
+  (`features.py`/`baselines.py`/`model.py`/`backtest.py`/`artifact.py`/
+  `train.py`/`inference.py`), `scikit-learn`+`xgboost` added as dependencies,
+  36 new tests (192 total, up from 156). Real backtest result on the pinned
+  snapshot's held-out 2022 test season: model R²=0.25 vs. persistence
+  baseline R²=-0.64 — beats naive "assume no change," not just a fitted
+  line. **API exposure deliberately deferred** (see decision 0013's
+  Consequences) — the artifact is gitignored/never committed, so wiring a
+  route in now would need a lazy-load-with-graceful-failure pattern and a
+  production training step neither exists yet; add it once there's a real
+  consumer (the roster builder's player browser is the natural one).
+  Trained artifact lives at `ml/artifacts/` (gitignored) — run
+  `uv run python scripts/train_raptor_trend_model.py` to reproduce it
+  locally; never overwrites an existing version (raises
+  `ModelArtifactExistsError`).
+- **`feature/roster-builder-ui`** (separate worktree, separate session): a
+  CraftedNBA-style full 12-player roster builder (player-browser sidebar,
+  PG/SG/SF/PF/C + bench slots, click-to-assign, "Run Projection"),
+  **replacing** the current one-swap Roster Lab per the user's explicit
+  choice. Read Part 2 of the plan at
+  `C:\Users\sahap\.claude\plans\elegant-discovering-yeti.md` for the full
+  architecture (new `CustomRosterRequest`/`CustomRosterResult` domain types,
+  a new `RosterScenarioService.build_custom_roster` method — the existing
+  minutes allocator and `ContributionProvider` interface need *zero*
+  changes, both are already team-agnostic — plus a new API route, a new
+  `/builder` page, and a flagged judgment call on hand-maintaining a
+  player-position lookup since no position data exists in any licensed
+  source). Check that branch's own commits/PR for its actual state rather
+  than trusting this summary if time has passed.
+
+Both branches were deliberately not made to depend on each other for a v1 —
+check `git log --oneline feature/roster-builder-ui` and `git status`/`git
+log` here before assuming either is further along or further behind than
+this note says.
 
 ## Exact next task
 
