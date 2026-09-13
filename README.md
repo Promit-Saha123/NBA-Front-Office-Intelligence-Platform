@@ -161,6 +161,14 @@ pnpm build
 pnpm test:codegen       # requires uv/Python — checks generated API types are fresh
 ```
 
+## Live deployment
+
+* **Frontend:** https://nba-front-office-intelligence-platf.vercel.app
+* **Backend:** https://nba-front-office-api.onrender.com
+
+The backend is on Render's free plan, which spins down after inactivity —
+the first request after idling can take ~50 seconds.
+
 ## CORS and deployment
 
 The backend's allowed origins (`FRONTEND_ORIGINS`) and the frontend's backend
@@ -168,7 +176,9 @@ URL (`NEXT_PUBLIC_API_URL`) are each read from exactly one place
 (`backend/api/app.py`'s `_frontend_origins()`; `frontend/src/lib/api/http.ts`'s
 `apiBaseUrl()`) — no other file hardcodes a localhost URL or origin. Moving
 from local development to a public deployment is an environment-variable
-change, not an application-code change:
+change, not an application-code change. The live deployment above already
+has both set correctly; the steps below are for redeploying from scratch
+(e.g. a fork):
 
 ```text
 Local:
