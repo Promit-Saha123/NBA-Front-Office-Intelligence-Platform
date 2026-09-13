@@ -7,7 +7,7 @@ import { toPlayerDetailViewModel } from "@/lib/detail-view-model";
 import type { ContributionProviderChoice } from "@/lib/api/detail";
 import {
   CONTRIBUTION_PROVIDER_CHOICES,
-  SUPPORTED_SEASONS,
+  DEFAULT_SEASON,
   normalizeSeason,
   type SearchParamsLike,
 } from "@/lib/url-state";
@@ -17,7 +17,6 @@ import { DetailStatus } from "./DetailStatus";
 import { DetailDisclosuresPanel } from "./DetailDisclosuresPanel";
 import styles from "./ScenarioForm.module.css";
 
-const DEFAULT_SEASON = SUPPORTED_SEASONS[0];
 // A page-level display default only — distinct from the scenario form's POST
 // request, which decision 0008 requires an explicit, no-default provider
 // choice for (a submitted calculation). This is a read-only page that must

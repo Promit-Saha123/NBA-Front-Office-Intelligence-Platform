@@ -12,6 +12,7 @@ vi.mock("@/lib/api/roster-builder", async (importOriginal) => {
 });
 
 import { RosterBuilderView } from "./RosterBuilderView";
+import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { RosterBuilderResponse } from "@/lib/api/roster-builder";
 
 const PLAYERS = Array.from({ length: 12 }, (_, i) => ({
@@ -20,7 +21,7 @@ const PLAYERS = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 const VALID_RESPONSE: RosterBuilderResponse = {
-  season: "2014-15",
+  season: DEFAULT_SEASON,
   player_ids: PLAYERS.map((p) => p.player_id),
   rotation: PLAYERS.map((p) => ({ player_id: p.player_id, minutes: 20 })),
   contribution: 1.234,
@@ -43,7 +44,7 @@ const VALID_RESPONSE: RosterBuilderResponse = {
 beforeEach(() => {
   lookupMocks.listSeasonPlayers
     .mockReset()
-    .mockResolvedValue({ season: "2014-15", players: PLAYERS });
+    .mockResolvedValue({ season: DEFAULT_SEASON, players: PLAYERS });
   rosterBuilderMocks.postCustomRoster.mockReset();
 });
 
@@ -75,7 +76,7 @@ describe("RosterBuilderView", () => {
     expect(screen.getByText("Roster projection")).toBeInTheDocument();
     expect(rosterBuilderMocks.postCustomRoster).toHaveBeenCalledWith(
       expect.objectContaining({
-        season: "2014-15",
+        season: DEFAULT_SEASON,
         player_ids: PLAYERS.map((p) => p.player_id),
         contribution_provider: "historical_benchmark",
       }),

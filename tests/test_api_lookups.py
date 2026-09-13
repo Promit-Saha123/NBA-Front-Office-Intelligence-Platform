@@ -38,7 +38,7 @@ def test_list_teams_returns_real_teams_sorted(client: TestClient) -> None:
 
 
 def test_list_teams_unsupported_season_returns_422(client: TestClient) -> None:
-    response = client.get("/seasons/1999-00/teams")
+    response = client.get("/seasons/2022-23/teams")
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"
 
@@ -72,7 +72,7 @@ def test_get_team_roster_unknown_team_returns_404(client: TestClient) -> None:
 
 
 def test_get_team_roster_unsupported_season_returns_422(client: TestClient) -> None:
-    response = client.get("/seasons/1999-00/teams/GSW/roster")
+    response = client.get("/seasons/2022-23/teams/GSW/roster")
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"
 
@@ -96,7 +96,7 @@ def test_list_season_players_returns_real_players_sorted_by_name(client: TestCli
 
 
 def test_list_season_players_unsupported_season_returns_422(client: TestClient) -> None:
-    response = client.get("/seasons/1999-00/players")
+    response = client.get("/seasons/2022-23/players")
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"
 
@@ -178,7 +178,7 @@ def test_get_player_unknown_player_returns_404(client: TestClient) -> None:
 
 def test_get_player_unsupported_season_returns_422(client: TestClient) -> None:
     response = client.get(
-        "/seasons/1999-00/players/curryst01",
+        "/seasons/2022-23/players/curryst01",
         params={"contribution_provider": "historical_benchmark"},
     )
     assert response.status_code == 422
@@ -226,7 +226,7 @@ def test_get_team_unknown_team_returns_404(client: TestClient) -> None:
 
 
 def test_get_team_unsupported_season_returns_422(client: TestClient) -> None:
-    response = client.get("/seasons/1999-00/teams/GSW")
+    response = client.get("/seasons/2022-23/teams/GSW")
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"
 

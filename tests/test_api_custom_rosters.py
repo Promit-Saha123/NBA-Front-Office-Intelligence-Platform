@@ -110,7 +110,7 @@ def test_unknown_player_returns_404(client: TestClient, twelve_player_ids: list[
 
 def test_unsupported_season_returns_422(client: TestClient, twelve_player_ids: list[str]) -> None:
     response = client.post(
-        "/custom-rosters", json=_request_body(twelve_player_ids, season="1999-00")
+        "/custom-rosters", json=_request_body(twelve_player_ids, season="2022-23")
     )
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"

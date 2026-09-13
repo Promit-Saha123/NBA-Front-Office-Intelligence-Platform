@@ -84,6 +84,7 @@ vi.mock("@/lib/api/scenarios", async (importOriginal) => {
 
 import { ScenarioForm } from "./ScenarioForm";
 import { ScenarioApiError } from "@/lib/api/errors";
+import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { ScenarioResponse } from "@/lib/api/scenarios";
 
 const TEAMS = { season: "2014-15", teams: ["BOS", "GSW"] };
@@ -176,7 +177,11 @@ afterEach(() => {
 describe("initial state from the URL", () => {
   it("normalizes an empty URL to the locked season via router.replace (an edit, not a submission)", async () => {
     render(<ScenarioForm />);
-    await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith("/?season=2014-15", { scroll: false }));
+    await waitFor(() =>
+      expect(routerMocks.replace).toHaveBeenCalledWith(`/?season=${DEFAULT_SEASON}`, {
+        scroll: false,
+      }),
+    );
     expect(routerMocks.push).not.toHaveBeenCalled();
   });
 
@@ -294,6 +299,10 @@ describe("selection-prevention rules", () => {
 
 describe("submission", () => {
   it("calls postScenario with the exact normalized request and pushes the submitted URL", async () => {
+    // Pinned explicitly: every fixture here (TEAMS, SEASON_PLAYERS, GSW_ROSTER)
+    // is season "2014-15" — this test exercises the submit flow, not
+    // DEFAULT_SEASON's mount-effect resolution (covered separately above).
+    setInitialUrl("season=2014-15");
     const user = userEvent.setup();
     render(<ScenarioForm />);
     await fillValidSelection(user);
@@ -792,7 +801,7 @@ describe("accessibility", () => {
     render(<ScenarioForm />);
     const season = screen.getByLabelText(/season/i);
     expect(season.tagName).toBe("SELECT");
-    expect(season).toHaveValue("2014-15");
+    expect(season).toHaveValue(DEFAULT_SEASON);
     expect(screen.getByRole("option", { name: "2014-15" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "2015-16" })).toBeInTheDocument();
   });

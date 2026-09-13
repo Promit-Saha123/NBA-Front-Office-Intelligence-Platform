@@ -7,8 +7,10 @@ import { postScenario, type ScenarioRequest } from "@/lib/api/scenarios";
 import { ScenarioApiError, UNKNOWN_ERROR_CODE, messageForErrorCode } from "@/lib/api/errors";
 import {
   CONTRIBUTION_PROVIDER_CHOICES,
+  DEFAULT_SEASON,
   isCompleteSelection,
   PARAM_KEYS,
+  seasonDecadeGroup,
   SUPPORTED_SEASONS,
   type ContributionProviderChoice,
   type ParamKeys,
@@ -22,11 +24,6 @@ import { ScenarioSuccessPreview } from "./ScenarioSuccessPreview";
 import type { SubmissionState } from "./scenario-submission-state";
 import { toScenarioViewModel } from "@/lib/view-model";
 import styles from "./ScenarioForm.module.css";
-
-// Default for the brief pre-mount-effect window before `selection.season` is
-// populated from the URL (see the mount effect below) — not a "locked"
-// value anymore now that SUPPORTED_SEASONS has more than one entry.
-const DEFAULT_SEASON = SUPPORTED_SEASONS[0];
 
 // PROVIDER_LABELS is keyed by the request enum (ContributionProviderChoice),
 // not the response enum (ProviderType) ScenarioDisclosuresPanel's
@@ -144,7 +141,10 @@ export function ScenarioForm({ paramKeys = PARAM_KEYS, hashPrefix, heading }: Sc
 
   const knownTeamIds = teams.data?.teams ?? [];
   const teamOptions = withSelectedOptionVisible(
-    knownTeamIds.map((teamId) => ({ value: teamId, label: `${teamId} — ${teamDisplayName(teamId)}` })),
+    knownTeamIds.map((teamId) => ({
+      value: teamId,
+      label: `${teamId} — ${teamDisplayName(teamId, season)}`,
+    })),
     selection.teamId,
     [],
   );
@@ -251,7 +251,11 @@ export function ScenarioForm({ paramKeys = PARAM_KEYS, hashPrefix, heading }: Sc
           label="Season"
           value={selection.season}
           onChange={(value) => updateSelection({ season: value as (typeof SUPPORTED_SEASONS)[number] })}
-          options={SUPPORTED_SEASONS.map((label) => ({ value: label, label }))}
+          options={SUPPORTED_SEASONS.map((label) => ({
+            value: label,
+            label,
+            group: seasonDecadeGroup(label),
+          }))}
           disabled={loading}
           placeholder="Select a season"
           helpText="Historical seasons only — no current-season or live data."

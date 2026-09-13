@@ -100,3 +100,12 @@ and re-evaluation triggers.
   reusing `TeamProfileCategory`; a hand-maintained, partially-covered
   `player-positions.ts` lookup backs the reference UI's position slots as a
   browsing aid only, never a hard constraint (2026-09-12).
+* [0015 — Full Historical Season Coverage](0015-full-historical-season-coverage.md) —
+  **Accepted**: `SUPPORTED_SEASON_LABELS` expands from 2 seasons to all 46 RS
+  seasons the pinned RAPTOR snapshot covers (1976-77–2021-22); the loader's
+  CSV reads are now cached per snapshot path (`~2s` to load all 46 at
+  startup, was projected `~6s+` uncached); `nba-teams.ts` becomes a
+  season-aware lookup covering all 42 historical team codes, most notably
+  disambiguating "CHA" (Charlotte Bobcats 2004-05–2013-14 vs. Hornets
+  2014-15–2021-22); `DEFAULT_SEASON` is centralized as the *most recent*
+  season rather than array position 0 (2026-09-13).
