@@ -90,3 +90,13 @@ and re-evaluation triggers.
   RAPTOR history, backtested (beats a persistence baseline on the held-out
   2022 test season), versioned, never labeled as PCE or as RAPTOR itself
   (2026-09-13).
+* [0014 — Roster-Builder Scenario Contract](0014-roster-builder-scenario-contract.md) —
+  **Accepted**: a from-scratch 12-player roster builder (`CustomRosterRequest`/
+  `CustomRosterResult`, `RosterScenarioService.build_custom_roster()`,
+  `POST /custom-rosters`) replaces the swap-based Roster Lab as the default
+  landing page (`/builder`, old page archived at `/scenario-lab`); no
+  baseline/scenario/change triplet (there is no "before"); a new
+  `RosterProfileCategory` carries a single aggregate profile value instead of
+  reusing `TeamProfileCategory`; a hand-maintained, partially-covered
+  `player-positions.ts` lookup backs the reference UI's position slots as a
+  browsing aid only, never a hard constraint (2026-09-12).
