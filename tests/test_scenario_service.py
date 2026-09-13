@@ -691,9 +691,12 @@ def test_manual_minutes_contribution_values_computed_from_override_minutes() -> 
 
 # --- Custom roster builder (decision 0014) ---
 
-_CUSTOM_ROSTER_MINUTES_CONFIG = MinutesAllocationConfig(
-    max_player_minutes=100.0, maximum_rotation_size=12
-)
+# Deliberately the *default* config (max_player_minutes=40, maximum_rotation_size=10)
+# — build_custom_roster must internally raise its effective rotation-size cap to
+# cover all CUSTOM_ROSTER_SIZE (12) players regardless of the configured cap, since
+# a custom roster's input *is* the target size, not an ambient pool to trim from.
+# Using the real default here (not an override, unlike _SYNTHETIC_MINUTES_CONFIG
+# above) is what actually exercises that guarantee.
 _CUSTOM_ROSTER_IDS = tuple(f"p{i}" for i in range(1, 13))
 
 
@@ -731,7 +734,7 @@ def _custom_roster_fixture() -> tuple[
     minutes = {pid: 1000.0 - i for i, pid in enumerate(_CUSTOM_ROSTER_IDS)}
     values = {pid: float(i) for i, pid in enumerate(_CUSTOM_ROSTER_IDS)}
     season_data = _custom_roster_season_data(minutes)
-    service = RosterScenarioService(season_data, _CUSTOM_ROSTER_MINUTES_CONFIG)
+    service = RosterScenarioService(season_data)
     provider = _synthetic_provider(values)
     return service, values, provider
 
@@ -749,6 +752,18 @@ def test_custom_roster_240_minutes_and_contribution_matches_formula() -> None:
         values[e.player_id] * (e.minutes / 240.0) for e in result.rotation
     )
     assert result.contribution == pytest.approx(expected_contribution)
+
+
+def test_custom_roster_never_drops_a_player_to_the_default_rotation_size_cap() -> None:
+    # Regression test: DEFAULT_MINUTES_CONFIG.maximum_rotation_size is 10, but a
+    # custom roster is always exactly CUSTOM_ROSTER_SIZE (12) players — every one
+    # of them must appear in the heuristic rotation, never silently truncated to
+    # the swap-scenario's ambient-pool rotation-size cap.
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS)
+    result = service.build_custom_roster(request, provider)
+    assert len(result.rotation) == len(_CUSTOM_ROSTER_IDS)
+    assert result.allocation_repairs == ()
 
 
 def test_custom_roster_wrong_size_raises_invalid_custom_roster_error() -> None:
@@ -849,6 +864,16 @@ def test_custom_roster_on_real_2014_15_snapshot() -> None:
     request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=player_ids)
     result = service.build_custom_roster(request, provider)
     assert sum(e.minutes for e in result.rotation) == pytest.approx(240.0, abs=1e-6)
+    # These 12 real players have widely varying season-total minutes (215 to
+    # 2720), so some legitimately fall under the allocator's minimum-rotation-
+    # minutes floor once scaled to a 240-total share — a real, intentional
+    # repair, not a bug. What must never happen is the *rotation-size-limit*
+    # exclusion this test's own fixture-based sibling
+    # (test_custom_roster_never_drops_a_player_to_the_default_rotation_size_cap)
+    # guards directly: DEFAULT_MINUTES_CONFIG.maximum_rotation_size (10) must
+    # never truncate 2 of these 12 explicitly-selected players just because
+    # it's unmodified here.
+    assert not any("rotation size limit" in repair for repair in result.allocation_repairs)
     assert result.data_version == "fivethirtyeight-nba-raptor-2022-11-29"
     assert result.model_version is None
 

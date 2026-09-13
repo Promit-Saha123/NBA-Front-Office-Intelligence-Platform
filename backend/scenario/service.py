@@ -11,6 +11,8 @@ contribution-value change is calculated.
 
 from __future__ import annotations
 
+import dataclasses
+
 from backend.domain.errors import (
     InvalidCustomRosterError,
     InvalidRosterError,
@@ -235,7 +237,22 @@ class RosterScenarioService:
             repairs: tuple[str, ...] = ()
             source = "manual"
         else:
-            allocation = allocate_minutes(weights, self._minutes_config)
+            # maximum_rotation_size exists to cap an ambient pool that can be
+            # larger than a realistic playing rotation (a real team roster,
+            # possibly 15+ players) — but a custom roster's input *is* the
+            # target size (exactly CUSTOM_ROSTER_SIZE, already validated
+            # above), so there is no larger pool to cap further. Using
+            # self._minutes_config's cap unmodified here (shared with
+            # build_scenario's real-team rosters) would silently drop
+            # explicitly-selected players purely because their real
+            # season-total minutes ranked them last, contradicting the
+            # premise that every selected player is part of the roster.
+            custom_roster_config = self._minutes_config
+            if custom_roster_config.maximum_rotation_size < len(request.player_ids):
+                custom_roster_config = dataclasses.replace(
+                    custom_roster_config, maximum_rotation_size=len(request.player_ids)
+                )
+            allocation = allocate_minutes(weights, custom_roster_config)
             entries = allocation.entries
             repairs = allocation.repairs
             source = "heuristic"

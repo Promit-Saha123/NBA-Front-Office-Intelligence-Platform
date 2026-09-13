@@ -125,6 +125,25 @@ Two real gaps, not just design work, had to be resolved before building:
   (already reusable, unmodified); aggregates contribution and the two
   profile categories via the existing `_minutes_weighted_contribution()`
   helper (unmodified, called with the single rotation instead of twice).
+  **On the heuristic (non-manual) path, the effective `minutes_config`'s
+  `maximum_rotation_size` is raised to at least `CUSTOM_ROSTER_SIZE` before
+  calling `allocate_minutes()`** (`dataclasses.replace`, not a mutation of
+  `self._minutes_config` — the swap engine's own config is untouched):
+  `maximum_rotation_size` exists to cap an *ambient* pool that can exceed a
+  realistic playing rotation (a real team roster, possibly 15+ players), but
+  a custom roster's input already *is* the target size, validated to be
+  exactly 12 — there is no larger pool to cap further. Without this, the
+  production service (constructed with `DEFAULT_MINUTES_CONFIG`,
+  `maximum_rotation_size=10`) would silently drop 2 of every 12
+  explicitly-selected players from every default-path projection, discovered
+  during review and fixed before merge — see
+  `test_custom_roster_never_drops_a_player_to_the_default_rotation_size_cap`
+  in `tests/test_scenario_service.py`. A player can still legitimately be
+  excluded by the allocator's other, unrelated repair rules (zero recorded
+  minutes, or falling under `minimum_rotation_minutes` once scaled — a real
+  possibility given how widely season-total minutes can vary across 12
+  freely-chosen players) — those are correct, intentional allocator
+  behavior, not something this fix suppresses.
 - `POST /custom-rosters` (`RosterBuilderRequest`/`RosterBuilderResponse` in
   `backend/api/schemas.py`, named distinctly from the domain types to avoid
   a name collision, same convention as `ScenarioRequest`/
@@ -179,7 +198,8 @@ hand-transcribed judgment call as equivalent-quality data.
   purely additive API surface (`POST /custom-rosters`).
 - `pnpm run generate:api` was re-run; `frontend/src/generated/
   {api-types.ts,openapi.json}` are committed alongside this change.
-- Backend: 156 → 174 tests (18 new: `build_custom_roster` unit tests +
+- Backend: 156 → 175 tests (19 new: `build_custom_roster` unit tests,
+  including the rotation-size-cap regression test above, +
   `POST /custom-rosters` API contract tests). Frontend: 172 → 176 tests.
 - The old Roster Lab is not deleted — `/scenario-lab` keeps it fully
   reachable and functional, linked from the new builder page.
