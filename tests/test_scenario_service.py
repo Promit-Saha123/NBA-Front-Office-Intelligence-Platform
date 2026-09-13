@@ -7,6 +7,7 @@ import math
 import pytest
 
 from backend.domain.errors import (
+    InvalidCustomRosterError,
     InvalidManualMinutesError,
     MissingContributionError,
     PlayerAlreadyOnRosterError,
@@ -17,6 +18,7 @@ from backend.domain.errors import (
     UnsupportedSeasonError,
 )
 from backend.domain.models import (
+    CustomRosterRequest,
     EpistemicType,
     Player,
     PlayerImpactProfile,
@@ -685,6 +687,170 @@ def test_manual_minutes_contribution_values_computed_from_override_minutes() -> 
     result = service.build_scenario(request, provider)
     expected = sum(values[pid] * (minutes / 240.0) for pid, minutes in manual_minutes.items())
     assert result.scenario_contribution == pytest.approx(expected)
+
+
+# --- Custom roster builder (decision 0014) ---
+
+_CUSTOM_ROSTER_MINUTES_CONFIG = MinutesAllocationConfig(
+    max_player_minutes=100.0, maximum_rotation_size=12
+)
+_CUSTOM_ROSTER_IDS = tuple(f"p{i}" for i in range(1, 13))
+
+
+def _custom_roster_season_data(player_minutes: dict[str, float]) -> HistoricalSeasonData:
+    """A minimal season with only player_seasons populated.
+
+    build_custom_roster never reads season_data.rosters (there is no real
+    team involved), so it's left empty rather than faked.
+    """
+    player_seasons = {
+        pid: PlayerSeason(
+            player=Player(internal_player_id=pid, name=pid),
+            season=SEASON,
+            minutes=minutes,
+            possessions=int(minutes * 2),
+        )
+        for pid, minutes in player_minutes.items()
+    }
+    return HistoricalSeasonData(
+        season=SEASON,
+        rosters={},
+        player_seasons=player_seasons,
+        contribution_values={},
+        offense_values=dict.fromkeys(player_minutes, 0.0),
+        defense_values=dict.fromkeys(player_minutes, 0.0),
+        data_version="synthetic-fixtures-v1",
+        attribution="Synthetic test fixture",
+        source_license="N/A (test fixture)",
+    )
+
+
+def _custom_roster_fixture() -> tuple[
+    RosterScenarioService, dict[str, float], SyntheticContributionProvider
+]:
+    minutes = {pid: 1000.0 - i for i, pid in enumerate(_CUSTOM_ROSTER_IDS)}
+    values = {pid: float(i) for i, pid in enumerate(_CUSTOM_ROSTER_IDS)}
+    season_data = _custom_roster_season_data(minutes)
+    service = RosterScenarioService(season_data, _CUSTOM_ROSTER_MINUTES_CONFIG)
+    provider = _synthetic_provider(values)
+    return service, values, provider
+
+
+def test_custom_roster_240_minutes_and_contribution_matches_formula() -> None:
+    service, values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS)
+    result = service.build_custom_roster(request, provider)
+
+    total_minutes = sum(e.minutes for e in result.rotation)
+    assert total_minutes == pytest.approx(240.0, abs=1e-6)
+    assert {e.player_id for e in result.rotation} == set(_CUSTOM_ROSTER_IDS)
+
+    expected_contribution = sum(
+        values[e.player_id] * (e.minutes / 240.0) for e in result.rotation
+    )
+    assert result.contribution == pytest.approx(expected_contribution)
+
+
+def test_custom_roster_wrong_size_raises_invalid_custom_roster_error() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(
+        season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS[:11]
+    )
+    with pytest.raises(InvalidCustomRosterError):
+        service.build_custom_roster(request, provider)
+
+
+def test_custom_roster_duplicate_player_raises_invalid_custom_roster_error() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(
+        season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS[:11] + ("p1",)
+    )
+    with pytest.raises(InvalidCustomRosterError):
+        service.build_custom_roster(request, provider)
+
+
+def test_custom_roster_unknown_player_raises_player_not_found_error() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(
+        season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS[:11] + ("nobody",)
+    )
+    with pytest.raises(PlayerNotFoundError):
+        service.build_custom_roster(request, provider)
+
+
+def test_custom_roster_unsupported_season_raises() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label="1999-00", player_ids=_CUSTOM_ROSTER_IDS)
+    with pytest.raises(UnsupportedSeasonError):
+        service.build_custom_roster(request, provider)
+
+
+def test_custom_roster_deterministic_result() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS)
+    result_a = service.build_custom_roster(request, provider)
+    result_b = service.build_custom_roster(request, provider)
+    assert result_a == result_b
+
+
+def test_custom_roster_version_metadata_present() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS)
+    result = service.build_custom_roster(request, provider)
+    assert result.provider_type == ProviderType.SYNTHETIC
+    assert result.data_version == provider.get_data_version()
+    assert result.contribution_epistemic_type == EpistemicType.SYNTHETIC_ESTIMATE
+    assert result.minutes_method == "heuristic-v1"
+    assert result.historical_only is True
+    assert result.model_version is None
+    assert result.attribution == (provider.get_attribution(),)
+
+
+def test_custom_roster_team_profile_categories_present_and_descriptive() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS)
+    result = service.build_custom_roster(request, provider)
+    categories = {c.category for c in result.team_profile}
+    assert categories == {"offensive_impact", "defensive_impact"}
+    assert all(
+        c.epistemic_type == EpistemicType.DESCRIPTIVE_INTERPRETATION for c in result.team_profile
+    )
+
+
+def test_custom_roster_manual_minutes_override() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    manual_minutes = dict.fromkeys(_CUSTOM_ROSTER_IDS, 20.0)
+    request = CustomRosterRequest(
+        season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS, manual_minutes=manual_minutes
+    )
+    result = service.build_custom_roster(request, provider)
+    minutes_by_id = {e.player_id: e.minutes for e in result.rotation}
+    assert minutes_by_id == manual_minutes
+    assert result.minutes_assumptions["scenario_source"] == "manual"
+
+
+def test_custom_roster_no_baseline_or_change_fields_leak() -> None:
+    service, _values, provider = _custom_roster_fixture()
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=_CUSTOM_ROSTER_IDS)
+    result = service.build_custom_roster(request, provider)
+    result_field_names = {f.name for f in dataclasses.fields(result)}
+    assert result_field_names.isdisjoint(
+        {"baseline_rotation", "scenario_rotation", "contribution_change"}
+    )
+    profile_field_names = {f.name for f in dataclasses.fields(result.team_profile[0])}
+    assert profile_field_names.isdisjoint({"baseline_value", "scenario_value", "change"})
+
+
+def test_custom_roster_on_real_2014_15_snapshot() -> None:
+    season_data = load_historical_season(SEASON_LABEL)
+    service = RosterScenarioService(season_data)
+    provider = HistoricalRaptorBenchmarkProvider(season_data)
+    player_ids = tuple(sorted(season_data.player_seasons)[:12])
+    request = CustomRosterRequest(season_label=SEASON_LABEL, player_ids=player_ids)
+    result = service.build_custom_roster(request, provider)
+    assert sum(e.minutes for e in result.rotation) == pytest.approx(240.0, abs=1e-6)
+    assert result.data_version == "fivethirtyeight-nba-raptor-2022-11-29"
+    assert result.model_version is None
 
 
 def test_integration_swap_on_real_2014_15_snapshot() -> None:

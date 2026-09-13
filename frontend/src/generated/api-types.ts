@@ -4,6 +4,23 @@
  * Regenerate with: pnpm run generate:api
  */
 export interface paths {
+    "/custom-rosters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Custom Roster */
+        post: operations["create_custom_roster_custom_rosters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scenarios": {
         parameters: {
             query?: never;
@@ -188,6 +205,58 @@ export interface components {
          * @enum {string}
          */
         ProviderType: "historical_raptor_benchmark" | "synthetic";
+        /**
+         * RosterBuilderRequest
+         * @description POST /custom-rosters — a from-scratch 12-player roster (decision 0014).
+         *
+         *     Named distinctly from backend.domain.models.CustomRosterRequest to avoid
+         *     a name collision where both are imported, same convention as
+         *     ScenarioRequest/RosterScenarioRequest.
+         */
+        RosterBuilderRequest: {
+            contribution_provider: components["schemas"]["ContributionProviderChoice"];
+            /** Manual Minutes */
+            manual_minutes?: {
+                [key: string]: number;
+            } | null;
+            /** Player Ids */
+            player_ids: string[];
+            /** Season */
+            season: string;
+        };
+        /** RosterBuilderResponse */
+        RosterBuilderResponse: {
+            /** Allocation Repairs */
+            allocation_repairs: string[];
+            /** Attribution */
+            attribution: string[];
+            /** Contribution */
+            contribution: number;
+            contribution_epistemic_type: components["schemas"]["EpistemicType"];
+            /** Data Version */
+            data_version: string;
+            /** Historical Only */
+            historical_only: boolean;
+            /** Minutes Assumptions */
+            minutes_assumptions: {
+                [key: string]: number | boolean | string;
+            };
+            /** Minutes Method */
+            minutes_method: string;
+            /** Model Version */
+            model_version: string | null;
+            /** Player Ids */
+            player_ids: string[];
+            provider_type: components["schemas"]["ProviderType"];
+            /** Provider Version */
+            provider_version: string;
+            /** Rotation */
+            rotation: components["schemas"]["RotationEntryResponse"][];
+            /** Season */
+            season: string;
+            /** Team Profile */
+            team_profile: components["schemas"]["RosterProfileCategoryResponse"][];
+        };
         /** RosterPlayerResponse */
         RosterPlayerResponse: {
             /** Minutes */
@@ -196,6 +265,14 @@ export interface components {
             name: string;
             /** Player Id */
             player_id: string;
+        };
+        /** RosterProfileCategoryResponse */
+        RosterProfileCategoryResponse: {
+            /** Category */
+            category: string;
+            epistemic_type: components["schemas"]["EpistemicType"];
+            /** Value */
+            value: number;
         };
         /** RotationEntryResponse */
         RotationEntryResponse: {
@@ -346,6 +423,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    create_custom_roster_custom_rosters_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterBuilderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RosterBuilderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_scenario_scenarios_post: {
         parameters: {
             query?: never;

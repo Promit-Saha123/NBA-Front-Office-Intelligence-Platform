@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from backend.domain.errors import (
     DomainError,
+    InvalidCustomRosterError,
     InvalidManualMinutesError,
     InvalidRosterError,
     InvalidRotationError,
@@ -35,6 +36,7 @@ DOMAIN_ERROR_STATUS: dict[type[DomainError], int] = {
     MissingContributionError: 422,
     InvalidRotationError: 422,
     InvalidManualMinutesError: 422,
+    InvalidCustomRosterError: 422,
     InvalidRosterError: 500,
 }
 

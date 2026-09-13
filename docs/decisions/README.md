@@ -82,3 +82,13 @@ and re-evaluation triggers.
   other's params and commit-history hashes can't collide; every result
   component gained an optional `idPrefix` to avoid duplicate DOM ids when
   two instances render at once (2026-09-10).
+* [0014 — Roster-Builder Scenario Contract](0014-roster-builder-scenario-contract.md) —
+  **Accepted**: a from-scratch 12-player roster builder (`CustomRosterRequest`/
+  `CustomRosterResult`, `RosterScenarioService.build_custom_roster()`,
+  `POST /custom-rosters`) replaces the swap-based Roster Lab as the default
+  landing page (`/builder`, old page archived at `/scenario-lab`); no
+  baseline/scenario/change triplet (there is no "before"); a new
+  `RosterProfileCategory` carries a single aggregate profile value instead of
+  reusing `TeamProfileCategory`; a hand-maintained, partially-covered
+  `player-positions.ts` lookup backs the reference UI's position slots as a
+  browsing aid only, never a hard constraint (2026-09-12).

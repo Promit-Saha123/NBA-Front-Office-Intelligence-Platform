@@ -34,7 +34,10 @@ from backend.api.schemas import (
     ExplanationFactorResponse,
     PlayerDetailResponse,
     PlayerSummaryResponse,
+    RosterBuilderRequest,
+    RosterBuilderResponse,
     RosterPlayerResponse,
+    RosterProfileCategoryResponse,
     RotationEntryResponse,
     ScenarioRequest,
     ScenarioResponse,
@@ -46,7 +49,12 @@ from backend.api.schemas import (
     TeamStintResponse,
 )
 from backend.domain.errors import DomainError, UnsupportedSeasonError
-from backend.domain.models import RosterScenarioRequest, RosterScenarioResult
+from backend.domain.models import (
+    CustomRosterRequest,
+    CustomRosterResult,
+    RosterScenarioRequest,
+    RosterScenarioResult,
+)
 from backend.fixtures.historical_loader import (
     SUPPORTED_SEASON_LABELS,
     HistoricalSeasonData,
@@ -137,6 +145,20 @@ def create_scenario(payload: ScenarioRequest, request: Request) -> ScenarioRespo
     return _to_response(result)
 
 
+@app.post("/custom-rosters", response_model=RosterBuilderResponse)
+def create_custom_roster(payload: RosterBuilderRequest, request: Request) -> RosterBuilderResponse:
+    state: AppState = request.app.state.nba
+    _season_state(state, payload.season)
+    provider = state.providers[payload.season][payload.contribution_provider]
+    domain_request = CustomRosterRequest(
+        season_label=payload.season,
+        player_ids=payload.player_ids,
+        manual_minutes=payload.manual_minutes,
+    )
+    result = state.services[payload.season].build_custom_roster(domain_request, provider)
+    return _custom_roster_to_response(result)
+
+
 @app.get("/seasons/{season}/teams", response_model=TeamsResponse)
 def list_teams(season: str, request: Request) -> TeamsResponse:
     state: AppState = request.app.state.nba
@@ -214,6 +236,34 @@ def get_team(season: str, team_id: str, request: Request) -> TeamDetailResponse:
         ],
         roster_size=detail.roster_size,
         total_roster_minutes=detail.total_roster_minutes,
+    )
+
+
+def _custom_roster_to_response(result: CustomRosterResult) -> RosterBuilderResponse:
+    return RosterBuilderResponse(
+        season=result.season_label,
+        player_ids=list(result.player_ids),
+        rotation=[
+            RotationEntryResponse(player_id=e.player_id, minutes=e.minutes)
+            for e in result.rotation
+        ],
+        contribution=result.contribution,
+        provider_type=result.provider_type,
+        provider_version=result.provider_version,
+        data_version=result.data_version,
+        contribution_epistemic_type=result.contribution_epistemic_type,
+        minutes_method=result.minutes_method,
+        minutes_assumptions=result.minutes_assumptions,
+        allocation_repairs=list(result.allocation_repairs),
+        team_profile=[
+            RosterProfileCategoryResponse(
+                category=c.category, value=c.value, epistemic_type=c.epistemic_type
+            )
+            for c in result.team_profile
+        ],
+        historical_only=result.historical_only,
+        attribution=list(result.attribution),
+        model_version=result.model_version,
     )
 
 

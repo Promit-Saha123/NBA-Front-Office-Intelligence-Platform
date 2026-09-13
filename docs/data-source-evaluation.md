@@ -271,3 +271,23 @@ FiveThirtyEight `nba-raptor` remains permitted (CC BY 4.0) for pipeline
 prototyping, methodology comparison, and historical benchmarking only — see the
 [audit](data-audits/fivethirtyeight-raptor-audit.md). It cannot serve PCE
 construction (no box-score fields) and is not a production source.
+
+## 9. Hand-Maintained Position Lookup (decision 0014, judgment call)
+
+The roster builder's position slots (PG/SG/SF/PF/C) need a `player_id ->
+position` lookup that exists nowhere in this project's licensed data — not in
+the RAPTOR CSVs, not in any domain model. `frontend/src/lib/player-positions.ts`
+adds one: ~450 of the ~573 players active across 2014-15/2015-16, hand-
+transcribed from public basketball knowledge, same "presentational fact, not
+derived from the licensed data" reasoning as `nba-teams.ts`'s 30 team codes.
+
+This is a **weaker precedent than `nba-teams.ts`**, flagged here rather than
+assumed clean: a franchise name is a fixed, universally-agreed label with one
+right answer; a player's "primary position" is a judgment call (many players
+are listed differently across sources, and this file records only one), and
+coverage is intentionally partial — end-of-bench/two-way/D-League-call-up
+players this session could not confidently place are omitted rather than
+guessed, not silently defaulted to a wrong position. A missing entry means
+"not listed," and the roster builder never treats position as a hard
+constraint (any player can fill any slot) — it is a browsing/filter aid only,
+never load-bearing for a calculated value.
