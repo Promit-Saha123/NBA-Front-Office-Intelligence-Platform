@@ -72,7 +72,21 @@ cd frontend
 pnpm install
 ```
 
-### 2. Configure environment variables
+### 2. Fetch the pinned historical data snapshot
+
+`data/raw/**/*.csv` is gitignored (only the checksummed `manifest.json` is
+committed — see data-rules), so a fresh clone needs this once before the
+backend can start:
+
+```bash
+uv run python scripts/fetch_raptor_snapshot.py
+```
+
+Downloads the pinned FiveThirtyEight RAPTOR snapshot and verifies every file's
+sha256/byte count against the manifest; safe to re-run (skips files already
+present and verified).
+
+### 3. Configure environment variables
 
 Both `.env.example` files document every variable; copy them and adjust only
 if you need non-default ports or origins:
@@ -90,7 +104,7 @@ The committed defaults already match each other (`http://localhost:3000` /
 frontend side), so for a same-machine local setup you can skip this step
 entirely — both apps fall back to those defaults if the files don't exist.
 
-### 3. Start both services
+### 4. Start both services
 
 ```bash
 # Backend (from the repo root) — reads FRONTEND_ORIGINS from .env if present
