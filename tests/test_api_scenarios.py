@@ -156,7 +156,7 @@ def test_unsupported_season_returns_422(
 ) -> None:
     outgoing, incoming = gsw_outgoing_and_incoming
     response = client.post(
-        "/scenarios", json=_request_body(outgoing, incoming, season="1999-00")
+        "/scenarios", json=_request_body(outgoing, incoming, season="2022-23")
     )
     assert response.status_code == 422
     assert response.json()["code"] == "UNSUPPORTED_SEASON"
