@@ -146,3 +146,41 @@ class TeamDetailResponse(BaseModel):
     players: list[RosterPlayerResponse]
     roster_size: int
     total_roster_minutes: float
+
+
+class RosterBuilderRequest(BaseModel):
+    """POST /custom-rosters — a from-scratch 12-player roster (decision 0014).
+
+    Named distinctly from backend.domain.models.CustomRosterRequest to avoid
+    a name collision where both are imported, same convention as
+    ScenarioRequest/RosterScenarioRequest.
+    """
+
+    season: str
+    player_ids: tuple[str, ...]
+    contribution_provider: ContributionProviderChoice
+    manual_minutes: dict[str, float] | None = None
+
+
+class RosterProfileCategoryResponse(BaseModel):
+    category: str
+    value: float
+    epistemic_type: EpistemicType
+
+
+class RosterBuilderResponse(BaseModel):
+    season: str
+    player_ids: list[str]
+    rotation: list[RotationEntryResponse]
+    contribution: float
+    provider_type: ProviderType
+    provider_version: str
+    data_version: str
+    contribution_epistemic_type: EpistemicType
+    minutes_method: str
+    minutes_assumptions: dict[str, float | bool | str]
+    allocation_repairs: list[str]
+    team_profile: list[RosterProfileCategoryResponse]
+    historical_only: bool
+    attribution: list[str]
+    model_version: str | None

@@ -1,0 +1,15 @@
+# Render Blueprint for the FastAPI backend (see README's "Deployment" section).
+# No database service: nothing in backend/ touches a database yet (docker-compose.yml's
+# Postgres is provisioned ahead of need per decision 0002, unused today).
+services:
+  - type: web
+    name: nba-front-office-api
+    runtime: python
+    plan: free
+    buildCommand: pip install uv && uv sync --frozen && uv run python scripts/fetch_raptor_snapshot.py
+    startCommand: uv run uvicorn backend.api.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      # Set once the frontend's Vercel URL is known (chicken-and-egg with the
+      # frontend's own NEXT_PUBLIC_API_URL) — see README's "Deployment" section.
+      - key: FRONTEND_ORIGINS
+        sync: false

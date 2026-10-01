@@ -1,5 +1,6 @@
 import type { ScenarioDisclosures } from "@/lib/view-model";
 import { humanizeSnakeCase } from "@/lib/format";
+import { SUPPORTED_SEASONS } from "@/lib/url-state";
 import styles from "./ScenarioForm.module.css";
 
 /** Decision 0007 §8, verbatim — the app-wide attribution/non-affiliation footer covering every
@@ -14,6 +15,9 @@ const ATTRIBUTION_FOOTER =
 export interface ScenarioDisclosuresPanelProps {
   disclosures: ScenarioDisclosures;
   season: string;
+  /** Namespaces this section's heading id — see ScenarioSuccessPreview's
+   *  own prop comment (decision 0012). Defaults to unprefixed. */
+  idPrefix?: string;
 }
 
 /** Exact required wording, decision 0007 §8 — keyed by the same provider_type literal union
@@ -29,10 +33,14 @@ function formatAssumptionValue(value: number | boolean | string): string {
   return String(value);
 }
 
-export function ScenarioDisclosuresPanel({ disclosures, season }: ScenarioDisclosuresPanelProps) {
+export function ScenarioDisclosuresPanel({
+  disclosures,
+  season,
+  idPrefix = "",
+}: ScenarioDisclosuresPanelProps) {
   return (
-    <section className={styles.disclosures} aria-labelledby="disclosures-heading">
-      <h3 id="disclosures-heading">Assumptions and disclosures</h3>
+    <section className={styles.disclosures} aria-labelledby={`${idPrefix}disclosures-heading`}>
+      <h3 id={`${idPrefix}disclosures-heading`}>Assumptions and disclosures</h3>
 
       {disclosures.historicalOnly ? (
         <p className={`${styles.disclosureBanner} badge`}>
@@ -87,8 +95,8 @@ export function ScenarioDisclosuresPanel({ disclosures, season }: ScenarioDisclo
         deterministic calculations.
       </p>
       <p className={styles.help}>
-        Supported seasons: 2014-15. Player benchmarks end with the 2021-22 season; team game
-        outcomes end with 2014-15.
+        Supported seasons: {SUPPORTED_SEASONS.join(", ")}. Player benchmarks end with the 2021-22
+        season; team game outcomes end with 2014-15.
       </p>
       <p className={styles.help}>
         Scenario estimates describe a historical what-if under stated assumptions. They do not

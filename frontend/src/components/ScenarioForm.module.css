@@ -4,6 +4,12 @@
   gap: var(--space-3);
 }
 
+.formHeading {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));

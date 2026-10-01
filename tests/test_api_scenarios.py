@@ -274,3 +274,25 @@ def test_manual_minutes_omitted_field_matches_existing_default_behavior(
     body = response.json()
     assert body["minutes_assumptions"]["scenario_source"] == "heuristic"
     assert body["minutes_assumptions"]["editable"] is True
+
+
+# --- Second-season (2015-16) coverage: proves the season-keyed AppState refactor ---
+
+
+def test_2015_16_successful_scenario(client: TestClient) -> None:
+    season_data = load_historical_season("2015-16")
+    gsw_ids = season_data.rosters["GSW"].player_ids()
+    outgoing = sorted(gsw_ids)[0]
+    incoming = next(pid for pid in season_data.player_seasons if pid not in gsw_ids)
+
+    response = client.post(
+        "/scenarios", json=_request_body(outgoing, incoming, season="2015-16")
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["season"] == "2015-16"
+    assert body["data_version"] == "fivethirtyeight-nba-raptor-2022-11-29"
+    baseline_total = sum(entry["minutes"] for entry in body["baseline_rotation"])
+    scenario_total = sum(entry["minutes"] for entry in body["scenario_rotation"])
+    assert baseline_total == pytest.approx(240.0, abs=1e-6)
+    assert scenario_total == pytest.approx(240.0, abs=1e-6)

@@ -21,6 +21,8 @@ backend/
   domain/models.py     Season, Team, Player, PlayerSeason, TeamRoster,
                         RosterMember, PlayerContribution, RotationEntry,
                         RosterScenarioRequest, RosterScenarioResult,
+                        CustomRosterRequest, CustomRosterResult,
+                        RosterProfileCategory (decision 0014),
                         ScenarioExplanationFactor, EpistemicType, ProviderType
   domain/errors.py      Typed errors, each with a stable `.code` string
   fixtures/historical_loader.py   Loads the pinned 2014-15 RAPTOR snapshot
@@ -28,10 +30,12 @@ backend/
   providers/raptor_benchmark.py   HistoricalRaptorBenchmarkProvider
   providers/synthetic.py          SyntheticContributionProvider
   minutes/allocator.py  MinutesAllocationConfig, allocate_minutes()
-  scenario/service.py   RosterScenarioService
-  api/app.py             FastAPI app: POST /scenarios + 3 read-only lookup
-                          GET routes, startup-loaded season data, CORS,
-                          DomainError -> HTTP status/code mapping
+  scenario/service.py   RosterScenarioService (build_scenario(),
+                          build_custom_roster() — decision 0014)
+  api/app.py             FastAPI app: POST /scenarios, POST /custom-rosters,
+                          + 5 read-only lookup GET routes, startup-loaded
+                          season data, CORS, DomainError -> HTTP status/code
+                          mapping
   api/schemas.py          Pydantic request/response schemas (distinct from
                            the domain dataclasses above)
   api/errors.py           DomainError subclass -> HTTP status table
@@ -106,13 +110,27 @@ Two more read-only routes support standalone player/team detail pages
   call is made for this route (no query parameter either) — it exposes only
   raw roster/identity data, same category as the original 3 lookup routes.
 
+`POST /custom-rosters` ([decision 0014](../decisions/0014-roster-builder-scenario-contract.md))
+— a from-scratch 12-player roster, completely independent of the swap
+scenario's `team_id`/in-out pair. `RosterBuilderRequest`/`RosterBuilderResponse`
+are named distinctly from `backend.domain.models.CustomRosterRequest`/
+`CustomRosterResult` (same collision-avoidance convention as
+`ScenarioRequest`/`RosterScenarioRequest`). The route is as thin as
+`create_scenario()`: parse, look up the provider, call
+`RosterScenarioService.build_custom_roster()`, map the result. There is no
+baseline/scenario/change triplet in the response — a from-scratch roster has
+no "before" — and `team_profile` carries a single aggregate value per
+category (`RosterProfileCategoryResponse`), not a `TeamProfileCategoryResponse`
+baseline/scenario pair.
+
 CORS (`CORSMiddleware`, origins from `FRONTEND_ORIGINS`, methods `GET` and
 `POST`) is configured because the browser calls this API directly — no
 Next.js proxy (decision 0008 §6). Run locally with
 `uv run uvicorn backend.api.app:app --reload`. Tests:
-`tests/test_api_scenarios.py` and `tests/test_api_lookups.py`, using
-FastAPI's `TestClient` (backed by `httpx2`) against the pinned local
-2014-15 snapshot — no live server, no network access.
+`tests/test_api_scenarios.py`, `tests/test_api_lookups.py`, and
+`tests/test_api_custom_rosters.py`, using FastAPI's `TestClient` (backed by
+`httpx2`) against the pinned local 2014-15 snapshot — no live server, no
+network access.
 
 ### Fixture loader
 

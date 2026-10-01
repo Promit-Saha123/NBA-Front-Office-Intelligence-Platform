@@ -1,0 +1,78 @@
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.playerList {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.playerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.playerRow:last-child {
+  border-bottom: none;
+}
+
+.playerRow span:first-child {
+  flex: 1;
+}
+
+.positionBadge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  min-width: 2rem;
+  text-align: center;
+}
+
+.slotGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: var(--space-2);
+}
+
+.slotCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.slotLabel {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.slotPlayer {
+  font-weight: 600;
+}
+
+.slotEmpty {
+  color: var(--color-text-muted);
+  font-style: italic;
+}

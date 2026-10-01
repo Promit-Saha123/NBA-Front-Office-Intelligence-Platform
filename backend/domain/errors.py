@@ -58,6 +58,10 @@ class InvalidManualMinutesError(DomainError):
     code = "INVALID_MANUAL_MINUTES"
 
 
+class InvalidCustomRosterError(DomainError):
+    code = "INVALID_CUSTOM_ROSTER"
+
+
 class MissingSourceFileError(DomainError):
     code = "MISSING_SOURCE_FILE"
 

@@ -199,6 +199,58 @@ class TeamProfileCategory:
 
 
 @dataclass(frozen=True)
+class CustomRosterRequest:
+    """A from-scratch 12-player roster assembled by the user (decision 0014).
+
+    Unlike RosterScenarioRequest, there is no real historical team or baseline
+    to swap against — every player is picked independently, any team of
+    origin within the season is allowed (same season-wide pool
+    RosterScenarioService already draws incoming swap players from).
+    """
+
+    season_label: str
+    player_ids: tuple[str, ...]
+    # Complete player_id -> minutes assignment for this roster. When present,
+    # replaces the heuristic allocator entirely, same rule as
+    # RosterScenarioRequest.manual_minutes.
+    manual_minutes: Mapping[str, float] | None = None
+
+
+@dataclass(frozen=True)
+class RosterProfileCategory:
+    """A descriptive, minutes-weighted profile value for a from-scratch custom roster.
+
+    Unlike TeamProfileCategory (decision 0010), a CustomRosterResult has no
+    baseline roster to compare against — it represents one assembled roster,
+    not a swap — so this carries a single aggregate value, not a
+    baseline/scenario/change triplet.
+    """
+
+    category: str
+    value: float
+    epistemic_type: EpistemicType
+
+
+@dataclass(frozen=True)
+class CustomRosterResult:
+    season_label: str
+    player_ids: tuple[str, ...]
+    rotation: tuple[RotationEntry, ...]
+    contribution: float
+    provider_type: ProviderType
+    provider_version: str
+    data_version: str
+    contribution_epistemic_type: EpistemicType
+    minutes_method: str
+    minutes_assumptions: dict[str, float | bool | str]
+    allocation_repairs: tuple[str, ...]
+    team_profile: tuple[RosterProfileCategory, ...]
+    historical_only: bool
+    attribution: tuple[str, ...]
+    model_version: str | None = None
+
+
+@dataclass(frozen=True)
 class MinutesAllocationResult:
     entries: tuple[RotationEntry, ...]
     repairs: tuple[str, ...]

@@ -3,7 +3,9 @@ import {
   applySelectionUpdate,
   EMPTY_SCENARIO_SELECTION,
   isCompleteSelection,
+  makePrefixedParamKeys,
   parseScenarioSelection,
+  PARAM_KEYS,
   serializeScenarioSelection,
   type ScenarioSelectionState,
 } from "./url-state";
@@ -126,17 +128,51 @@ describe("applySelectionUpdate", () => {
   });
 
   it("clears team and both players when the season actually changes", () => {
-    // SUPPORTED_SEASONS has exactly one value today, so this can't happen via
-    // the UI yet — cast a hypothetical second season to prove the cleanup
-    // rule itself is correct before a second season ever ships.
-    const hypotheticalSeason = "2015-16" as ScenarioSelectionState["season"];
-    const next = applySelectionUpdate(FULL_SELECTION, { season: hypotheticalSeason });
+    const next = applySelectionUpdate(FULL_SELECTION, { season: "2015-16" });
     expect(next).toEqual({
-      season: hypotheticalSeason,
+      season: "2015-16",
       teamId: null,
       playerOutId: null,
       playerInId: null,
       contributionProvider: FULL_SELECTION.contributionProvider,
     });
+  });
+});
+
+describe("makePrefixedParamKeys (comparison view, decision 0012)", () => {
+  it("prefixes every param key without changing the field names", () => {
+    const keysA = makePrefixedParamKeys("a");
+    expect(keysA).toEqual({
+      season: "a_season",
+      teamId: "a_team_id",
+      playerOutId: "a_player_out_id",
+      playerInId: "a_player_in_id",
+      contributionProvider: "a_contribution_provider",
+    });
+  });
+
+  it("round-trips a selection under a prefixed key map without touching the default keys", () => {
+    const keysA = makePrefixedParamKeys("a");
+    const params = serializeScenarioSelection(FULL_SELECTION, keysA);
+    expect(params.get(PARAM_KEYS.teamId)).toBeNull();
+    expect(params.get(keysA.teamId)).toBe("GSW");
+    expect(parseScenarioSelection(params, keysA)).toEqual(FULL_SELECTION);
+  });
+
+  it("two prefixed selections coexist in the same URLSearchParams without colliding", () => {
+    const keysA = makePrefixedParamKeys("a");
+    const keysB = makePrefixedParamKeys("b");
+    const otherSelection: ScenarioSelectionState = {
+      ...FULL_SELECTION,
+      teamId: "BOS",
+      season: "2015-16",
+    };
+
+    const combined = new URLSearchParams();
+    for (const [k, v] of serializeScenarioSelection(FULL_SELECTION, keysA)) combined.set(k, v);
+    for (const [k, v] of serializeScenarioSelection(otherSelection, keysB)) combined.set(k, v);
+
+    expect(parseScenarioSelection(combined, keysA)).toEqual(FULL_SELECTION);
+    expect(parseScenarioSelection(combined, keysB)).toEqual(otherSelection);
   });
 });

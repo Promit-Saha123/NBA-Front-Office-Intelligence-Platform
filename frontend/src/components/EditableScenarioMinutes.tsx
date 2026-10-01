@@ -19,6 +19,9 @@ export interface EditableScenarioMinutesProps {
    *  ContributionProviderChoice (see ScenarioForm.tsx's PROVIDER_LABELS comment). */
   contributionProvider: ContributionProviderChoice;
   playerLabel: (playerId: string) => string;
+  /** Namespaces this section's heading id — see ScenarioSuccessPreview's
+   *  own prop comment (decision 0012). Defaults to unprefixed. */
+  idPrefix?: string;
 }
 
 // Small display-only slack for the total-minutes gate, matching the same
@@ -68,6 +71,7 @@ export function EditableScenarioMinutes({
   viewModel,
   contributionProvider,
   playerLabel,
+  idPrefix = "",
 }: EditableScenarioMinutesProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, number>>(() => defaultDraft(viewModel));
@@ -141,8 +145,8 @@ export function EditableScenarioMinutes({
   const editedViewModel = edited.status === "success" ? toScenarioViewModel(edited.response) : null;
 
   return (
-    <section className={styles.resultSection} aria-labelledby="rotation-heading">
-      <h3 id="rotation-heading">Rotation comparison</h3>
+    <section className={styles.resultSection} aria-labelledby={`${idPrefix}rotation-heading`}>
+      <h3 id={`${idPrefix}rotation-heading`}>Rotation comparison</h3>
       <RotationComparisonTable
         rows={viewModel.rotationComparison}
         outgoingPlayerId={viewModel.playerOutId}

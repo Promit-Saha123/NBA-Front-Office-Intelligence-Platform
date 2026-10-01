@@ -7,9 +7,14 @@
  * `{get(name)}` interface (satisfied by both `URLSearchParams` and Next's
  * `ReadonlyURLSearchParams`), so it needs no DOM/router to unit test and no
  * behavior changes between server and client hydration.
+ *
+ * `parseScenarioSelection`/`serializeScenarioSelection` take an optional
+ * `paramKeys` map (default: unprefixed `PARAM_KEYS`) so the same 5-field
+ * shape can back two independent, URL-coexisting selections on the
+ * comparison view (decision 0012) via `makePrefixedParamKeys`.
  */
 
-export const SUPPORTED_SEASONS = ["2014-15"] as const;
+export const SUPPORTED_SEASONS = ["2014-15", "2015-16"] as const;
 export type SupportedSeason = (typeof SUPPORTED_SEASONS)[number];
 
 export const CONTRIBUTION_PROVIDER_CHOICES = ["historical_benchmark", "synthetic"] as const;
@@ -31,13 +36,27 @@ export const EMPTY_SCENARIO_SELECTION: ScenarioSelectionState = {
   contributionProvider: null,
 };
 
-const PARAM_KEYS = {
+export type ParamKeys = Record<keyof ScenarioSelectionState, string>;
+
+export const PARAM_KEYS = {
   season: "season",
   teamId: "team_id",
   playerOutId: "player_out_id",
   playerInId: "player_in_id",
   contributionProvider: "contribution_provider",
-} as const satisfies Record<keyof ScenarioSelectionState, string>;
+} as const satisfies ParamKeys;
+
+/**
+ * Builds a side-prefixed param-key map for the scenario comparison view
+ * (decision 0012), e.g. `makePrefixedParamKeys("a")` → `{ season: "a_season",
+ * team_id: "a_team_id", ... }`. Two independent `ParamKeys` maps let two
+ * scenario selections coexist on one URL without colliding.
+ */
+export function makePrefixedParamKeys(prefix: string): ParamKeys {
+  return Object.fromEntries(
+    Object.entries(PARAM_KEYS).map(([field, param]) => [field, `${prefix}_${param}`]),
+  ) as ParamKeys;
+}
 
 export interface SearchParamsLike {
   get(name: string): string | null;
@@ -64,28 +83,36 @@ function normalizeFreeTextId(value: string | null): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Parses the 5 scenario-input params. Missing or invalid values normalize to `null` — never throws. */
-export function parseScenarioSelection(searchParams: SearchParamsLike): ScenarioSelectionState {
+/** Parses the 5 scenario-input params (under the given `paramKeys` map, default
+ *  unprefixed). Missing or invalid values normalize to `null` — never throws. */
+export function parseScenarioSelection(
+  searchParams: SearchParamsLike,
+  paramKeys: ParamKeys = PARAM_KEYS,
+): ScenarioSelectionState {
   return {
-    season: normalizeSeason(searchParams.get(PARAM_KEYS.season)),
-    teamId: normalizeFreeTextId(searchParams.get(PARAM_KEYS.teamId)),
-    playerOutId: normalizeFreeTextId(searchParams.get(PARAM_KEYS.playerOutId)),
-    playerInId: normalizeFreeTextId(searchParams.get(PARAM_KEYS.playerInId)),
-    contributionProvider: normalizeProvider(searchParams.get(PARAM_KEYS.contributionProvider)),
+    season: normalizeSeason(searchParams.get(paramKeys.season)),
+    teamId: normalizeFreeTextId(searchParams.get(paramKeys.teamId)),
+    playerOutId: normalizeFreeTextId(searchParams.get(paramKeys.playerOutId)),
+    playerInId: normalizeFreeTextId(searchParams.get(paramKeys.playerInId)),
+    contributionProvider: normalizeProvider(searchParams.get(paramKeys.contributionProvider)),
   };
 }
 
-/** Serializes a selection back into URLSearchParams. A `null` field is omitted entirely
- *  (an absent param, not an empty-string one) so a partial selection round-trips cleanly.
- *  Never includes anything beyond these 5 input fields — no API result data. */
-export function serializeScenarioSelection(state: ScenarioSelectionState): URLSearchParams {
+/** Serializes a selection into URLSearchParams (under the given `paramKeys` map,
+ *  default unprefixed). A `null` field is omitted entirely (an absent param, not
+ *  an empty-string one) so a partial selection round-trips cleanly. Never includes
+ *  anything beyond these 5 input fields — no API result data. */
+export function serializeScenarioSelection(
+  state: ScenarioSelectionState,
+  paramKeys: ParamKeys = PARAM_KEYS,
+): URLSearchParams {
   const params = new URLSearchParams();
-  if (state.season !== null) params.set(PARAM_KEYS.season, state.season);
-  if (state.teamId !== null) params.set(PARAM_KEYS.teamId, state.teamId);
-  if (state.playerOutId !== null) params.set(PARAM_KEYS.playerOutId, state.playerOutId);
-  if (state.playerInId !== null) params.set(PARAM_KEYS.playerInId, state.playerInId);
+  if (state.season !== null) params.set(paramKeys.season, state.season);
+  if (state.teamId !== null) params.set(paramKeys.teamId, state.teamId);
+  if (state.playerOutId !== null) params.set(paramKeys.playerOutId, state.playerOutId);
+  if (state.playerInId !== null) params.set(paramKeys.playerInId, state.playerInId);
   if (state.contributionProvider !== null) {
-    params.set(PARAM_KEYS.contributionProvider, state.contributionProvider);
+    params.set(paramKeys.contributionProvider, state.contributionProvider);
   }
   return params;
 }
@@ -116,10 +143,8 @@ export function isCompleteSelection(
  *   the backend, so it is left untouched — the backend remains the final
  *   authority if a specific combination turns out invalid.
  * - Changing the season clears team and both players, since a roster and a
- *   player's validity are exactly as season-scoped as they are team-scoped.
- *   Currently unreachable in practice (SUPPORTED_SEASONS has one value, so
- *   season never actually changes) — kept so this rule already exists the
- *   moment a second season ships, rather than being a gap discovered then.
+ *   player's validity are exactly as season-scoped as they are team-scoped
+ *   (decision 0011 — reachable now that SUPPORTED_SEASONS has two values).
  */
 export function applySelectionUpdate(
   state: ScenarioSelectionState,

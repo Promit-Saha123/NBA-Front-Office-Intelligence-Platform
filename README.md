@@ -72,7 +72,21 @@ cd frontend
 pnpm install
 ```
 
-### 2. Configure environment variables
+### 2. Fetch the pinned historical data snapshot
+
+`data/raw/**/*.csv` is gitignored (only the checksummed `manifest.json` is
+committed — see data-rules), so a fresh clone needs this once before the
+backend can start:
+
+```bash
+uv run python scripts/fetch_raptor_snapshot.py
+```
+
+Downloads the pinned FiveThirtyEight RAPTOR snapshot and verifies every file's
+sha256/byte count against the manifest; safe to re-run (skips files already
+present and verified).
+
+### 3. Configure environment variables
 
 Both `.env.example` files document every variable; copy them and adjust only
 if you need non-default ports or origins:
@@ -90,7 +104,7 @@ The committed defaults already match each other (`http://localhost:3000` /
 frontend side), so for a same-machine local setup you can skip this step
 entirely — both apps fall back to those defaults if the files don't exist.
 
-### 3. Start both services
+### 4. Start both services
 
 ```bash
 # Backend (from the repo root) — reads FRONTEND_ORIGINS from .env if present
@@ -147,29 +161,69 @@ pnpm build
 pnpm test:codegen       # requires uv/Python — checks generated API types are fresh
 ```
 
-## CORS and future deployment
+## Live deployment
+
+* **Frontend:** https://nba-front-office-intelligence-platf.vercel.app
+* **Backend:** https://nba-front-office-api.onrender.com
+
+The backend is on Render's free plan, which spins down after inactivity —
+the first request after idling can take ~50 seconds.
+
+## CORS and deployment
 
 The backend's allowed origins (`FRONTEND_ORIGINS`) and the frontend's backend
 URL (`NEXT_PUBLIC_API_URL`) are each read from exactly one place
 (`backend/api/app.py`'s `_frontend_origins()`; `frontend/src/lib/api/http.ts`'s
 `apiBaseUrl()`) — no other file hardcodes a localhost URL or origin. Moving
-from local development to a public deployment is intended to be an
-environment-variable change, not an application-code change:
+from local development to a public deployment is an environment-variable
+change, not an application-code change. The live deployment above already
+has both set correctly; the steps below are for redeploying from scratch
+(e.g. a fork):
 
 ```text
 Local:
   NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
   FRONTEND_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
-Future public deployment (illustrative — not provisioned):
-  NEXT_PUBLIC_API_URL=https://<your-backend-host>.example
+Public deployment:
+  NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com
   FRONTEND_ORIGINS=https://<your-vercel-project>.vercel.app
 ```
 
-The likely target is a Vercel-hosted Next.js frontend and a separately hosted
-FastAPI backend, but **no deployment, hosting selection, or Vercel project
-exists yet** — this is preparatory configuration only. See `HANDOFF.md`'s
-"Portfolio Roadmap" note for the current decision on sequencing that work.
+### Deploying the backend (Render)
+
+`render.yaml` at the repo root is a Render Blueprint — no manual field-filling
+beyond one env var:
+
+1. On [render.com](https://render.com), **New > Blueprint**, connect this
+   GitHub repo. Render reads `render.yaml` and provisions the web service
+   (free plan, no database — nothing in `backend/` uses one yet).
+2. Leave `FRONTEND_ORIGINS` unset for now (it's intentionally
+   `sync: false` in the blueprint) — there's a chicken-and-egg with the
+   frontend's own URL below; come back and set it once you have the Vercel
+   URL, then trigger a redeploy.
+3. Note the resulting service URL (`https://<name>.onrender.com`) — the
+   frontend needs it next.
+
+Free-tier services spin down after inactivity (a real cold-start delay on
+the first request after idling), which is expected for a portfolio demo, not
+a bug.
+
+### Deploying the frontend (Vercel)
+
+1. On [vercel.com](https://vercel.com), **New Project**, import this repo.
+2. Set **Root Directory** to `frontend` (this is a monorepo — Vercel does not
+   auto-detect this; it must be set explicitly in project settings).
+3. Add environment variable `NEXT_PUBLIC_API_URL` = the Render URL from
+   above. Deploy.
+4. Note the resulting production URL (`https://<project>.vercel.app`).
+
+### Closing the loop
+
+Go back to the Render service's environment settings, set `FRONTEND_ORIGINS`
+to the Vercel URL from step 4, and redeploy the backend. Verify with the
+"How to verify frontend-to-backend connectivity" check above, against the
+public URLs instead of localhost.
 
 ## Documentation
 

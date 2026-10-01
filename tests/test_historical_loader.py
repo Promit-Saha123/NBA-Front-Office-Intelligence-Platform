@@ -85,7 +85,46 @@ def test_expected_data_version_is_enforced(tmp_path: Path) -> None:
 
 def test_unsupported_season_fails_clearly() -> None:
     with pytest.raises(UnsupportedSeasonError):
-        load_historical_season("2015-16")
+        load_historical_season("2016-17")
+
+
+# --- Integration tests against the real pinned 2015-16 snapshot ---
+
+
+def test_2015_16_loads_successfully() -> None:
+    season_data = load_historical_season("2015-16")
+    assert season_data.season.label == "2015-16"
+    assert season_data.season.source_value == 2016
+    assert season_data.data_version == EXPECTED_RAPTOR_DATA_VERSION
+
+
+def test_2015_16_expected_teams_exist() -> None:
+    season_data = load_historical_season("2015-16")
+    expected_teams = {
+        "ATL", "BOS", "BRK", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
+        "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK",
+        "OKC", "ORL", "PHI", "PHO", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
+    }  # fmt: skip
+    assert set(season_data.rosters) == expected_teams
+    assert len(season_data.rosters) == 30
+    # Verified against the pinned CSV: 528 RS by-team rows for season 2016.
+    total_stint_rows = sum(len(roster.members) for roster in season_data.rosters.values())
+    assert total_stint_rows == 528
+
+
+def test_2015_16_expected_roster_record_exists() -> None:
+    season_data = load_historical_season("2015-16")
+    gsw = season_data.rosters["GSW"]
+    assert gsw.has_player("curryst01")
+    assert gsw.member_minutes("curryst01") == 2700.0
+
+
+def test_2015_16_offense_and_defense_values_loaded() -> None:
+    # curryst01's season-2016 raptor_offense/raptor_defense, verified directly against the CSV.
+    season_data = load_historical_season("2015-16")
+    assert season_data.contribution_values["curryst01"] == pytest.approx(12.487858, abs=1e-6)
+    assert season_data.offense_values["curryst01"] == pytest.approx(10.379411, abs=1e-6)
+    assert season_data.defense_values["curryst01"] == pytest.approx(2.108447, abs=1e-6)
 
 
 def test_missing_source_file_fails_clearly(tmp_path: Path) -> None:
