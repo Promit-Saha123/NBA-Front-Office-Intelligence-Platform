@@ -72,6 +72,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/seasons/{season}/players/{player_id}/projection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Player Projection
+         * @description Decision 0013's RAPTOR-trend model, exposed here as a standalone
+         *     next-season forecast — never mixed into ScenarioResponse/
+         *     RosterBuilderResponse's contribution/model_version fields, which stay
+         *     reserved for a model feeding the scenario engine itself (none exists in
+         *     this MVP). Raises ModelArtifactNotFoundError (-> 503) if no model has
+         *     been trained in this environment, or PlayerProjectionNotFoundError
+         *     (-> 404) if this player has no RAPTOR record for this season.
+         */
+        get: operations["get_player_projection_seasons__season__players__player_id__projection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/seasons/{season}/teams": {
         parameters: {
             query?: never;
@@ -191,6 +217,34 @@ export interface components {
             season: string;
             /** Team Stints */
             team_stints: components["schemas"]["TeamStintResponse"][];
+        };
+        /**
+         * PlayerProjectionResponse
+         * @description GET /seasons/{season}/players/{player_id}/projection (decision 0013).
+         *
+         *     A standalone next-season RAPTOR-trend forecast — never fed into
+         *     ContributionProvider or the scenario engine (decision 0013's
+         *     re-evaluation triggers: that would need its own decision record).
+         *     `contribution_epistemic_type` is always EpistemicType.MODEL_PREDICTION.
+         */
+        PlayerProjectionResponse: {
+            contribution_epistemic_type: components["schemas"]["EpistemicType"];
+            /** Data Version */
+            data_version: string;
+            /** Feature Schema Version */
+            feature_schema_version: string;
+            /** Model Version */
+            model_version: string;
+            /** Player Id */
+            player_id: string;
+            /** Predicted Raptor Total */
+            predicted_raptor_total: number;
+            /** Prediction Timestamp */
+            prediction_timestamp: string;
+            /** Season */
+            season: string;
+            /** Target Season */
+            target_season: string;
         };
         /** PlayerSummaryResponse */
         PlayerSummaryResponse: {
@@ -541,6 +595,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlayerDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_player_projection_seasons__season__players__player_id__projection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                season: string;
+                player_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerProjectionResponse"];
                 };
             };
             /** @description Validation Error */

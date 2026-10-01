@@ -50,10 +50,26 @@ vi.mock("next/navigation", () => ({
 const detailMocks = vi.hoisted(() => ({ getPlayerDetail: vi.fn() }));
 vi.mock("@/lib/api/detail", () => detailMocks);
 
+const projectionMocks = vi.hoisted(() => ({ getPlayerProjection: vi.fn() }));
+vi.mock("@/lib/api/projection", () => projectionMocks);
+
 import { PlayerDetailView } from "./PlayerDetailView";
 import { ScenarioApiError, messageForErrorCode } from "@/lib/api/errors";
 import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { PlayerDetailResponse } from "@/lib/api/detail";
+import type { PlayerProjectionResponse } from "@/lib/api/projection";
+
+const CURRY_PROJECTION: PlayerProjectionResponse = {
+  season: "2014-15",
+  player_id: "curryst01",
+  target_season: "2015-16",
+  predicted_raptor_total: 5.123,
+  model_version: "raptor-trend-xgb-v1",
+  data_version: "fivethirtyeight-nba-raptor-2022-11-29",
+  feature_schema_version: "raptor-trend-features-v1",
+  contribution_epistemic_type: "model_prediction",
+  prediction_timestamp: "2026-10-01T00:00:00+00:00",
+};
 
 const CURRY: PlayerDetailResponse = {
   player_id: "curryst01",
@@ -75,6 +91,11 @@ const CURRY: PlayerDetailResponse = {
 beforeEach(() => {
   routerMocks.reset();
   detailMocks.getPlayerDetail.mockReset();
+  projectionMocks.getPlayerProjection.mockReset();
+  // Default every test to the success path unless it overrides this itself —
+  // most of these tests aren't about the projection section, so this keeps
+  // them from each needing their own unrelated mock setup.
+  projectionMocks.getPlayerProjection.mockResolvedValue(CURRY_PROJECTION);
 });
 
 afterEach(() => {
@@ -101,6 +122,33 @@ describe("PlayerDetailView", () => {
 
     const teamLink = screen.getByRole("link", { name: "GSW" });
     expect(teamLink).toHaveAttribute("href", "/teams/GSW?season=2014-15");
+  });
+
+  it("renders the next-season projection on success, clearly labeled as an experimental model", async () => {
+    detailMocks.getPlayerDetail.mockResolvedValue(CURRY);
+    render(<PlayerDetailView />);
+
+    expect(await screen.findByRole("heading", { name: "Next-season projection" })).toBeInTheDocument();
+    expect(screen.getByText("2015-16")).toBeInTheDocument();
+    expect(screen.getByText("5.12")).toBeInTheDocument();
+    expect(screen.getByText("raptor-trend-xgb-v1")).toBeInTheDocument();
+    expect(screen.getByText(/not the project's approved future PCE metric/i)).toBeInTheDocument();
+  });
+
+  it("shows a quiet unavailable note, not an error banner, when no model is trained in this environment", async () => {
+    detailMocks.getPlayerDetail.mockResolvedValue(CURRY);
+    projectionMocks.getPlayerProjection.mockRejectedValue(
+      new ScenarioApiError({
+        status: 503,
+        code: "MODEL_ARTIFACT_NOT_FOUND",
+        message: messageForErrorCode("MODEL_ARTIFACT_NOT_FOUND"),
+      }),
+    );
+    render(<PlayerDetailView />);
+
+    await screen.findByRole("heading", { name: "Next-season projection" });
+    expect(screen.getByText(/next-season projection isn't available in this environment/i)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("renders every team stint as a separate link for a mid-season-traded player", async () => {

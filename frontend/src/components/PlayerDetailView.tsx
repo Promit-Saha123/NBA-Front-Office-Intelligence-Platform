@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePlayerDetail } from "@/lib/use-player-team-detail";
+import { usePlayerProjection } from "@/lib/use-player-projection";
 import { toPlayerDetailViewModel } from "@/lib/detail-view-model";
 import type { ContributionProviderChoice } from "@/lib/api/detail";
 import {
@@ -12,6 +13,8 @@ import {
   type SearchParamsLike,
 } from "@/lib/url-state";
 import { PROVIDER_LABELS } from "@/lib/provider-labels";
+import { humanizeSnakeCase } from "@/lib/format";
+import { messageForErrorCode } from "@/lib/api/errors";
 import { ScenarioField } from "./ScenarioField";
 import { DetailStatus } from "./DetailStatus";
 import { DetailDisclosuresPanel } from "./DetailDisclosuresPanel";
@@ -52,6 +55,7 @@ export function PlayerDetailView() {
   const provider = readProvider(searchParams);
   const detail = usePlayerDetail(season, playerId, provider);
   const viewModel = detail.data ? toPlayerDetailViewModel(detail.data) : null;
+  const projection = usePlayerProjection(season, playerId);
 
   function handleProviderChange(next: string) {
     const query = new URLSearchParams(searchParams.toString());
@@ -145,6 +149,42 @@ export function PlayerDetailView() {
             <p className={styles.help}>
               Descriptive historical values only — not a projection of current ability.
             </p>
+          </section>
+
+          <section aria-labelledby="player-projection-heading" className={styles.resultSection}>
+            <h2 id="player-projection-heading">Next-season projection</h2>
+            {projection.loading ? (
+              <p className={styles.help}>Loading next-season projection…</p>
+            ) : projection.error ? (
+              <p className={styles.help}>{messageForErrorCode(projection.error.code)}</p>
+            ) : projection.data ? (
+              <>
+                <dl className={styles.successGrid}>
+                  <div>
+                    <dt>Target season</dt>
+                    <dd>{projection.data.target_season}</dd>
+                  </div>
+                  <div>
+                    <dt>Predicted RAPTOR total</dt>
+                    <dd>{projection.data.predicted_raptor_total.toFixed(2)}</dd>
+                  </div>
+                  <div>
+                    <dt>Basis</dt>
+                    <dd>{humanizeSnakeCase(projection.data.contribution_epistemic_type)}</dd>
+                  </div>
+                  <div>
+                    <dt>Model version</dt>
+                    <dd>{projection.data.model_version}</dd>
+                  </div>
+                </dl>
+                <p className={styles.help}>
+                  An experimental model&apos;s forecast of this player&apos;s own next-season
+                  RAPTOR value from their multi-season history (decision 0013) — not the
+                  project&apos;s approved future PCE metric, not validated causally, and never
+                  fed into any scenario or roster-builder calculation on this site.
+                </p>
+              </>
+            ) : null}
           </section>
 
           <DetailDisclosuresPanel

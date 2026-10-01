@@ -68,6 +68,11 @@ def parse_season_label(label: str) -> Season:
     return Season(label=label, start_year=start_year, end_year=end_year, source_value=end_year)
 
 
+def season_label_for_end_year(end_year: int) -> str:
+    """Inverse of parse_season_label's end-year convention: 2015 -> "2014-15"."""
+    return f"{end_year - 1}-{str(end_year)[-2:]}"
+
+
 @dataclass(frozen=True)
 class Team:
     internal_team_id: str

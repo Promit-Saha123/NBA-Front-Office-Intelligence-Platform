@@ -102,6 +102,49 @@ memorized from noise.
   player browser is the natural first one) — added then, not spec'd blind
   now.
 
+## Update (2026-10-01): API exposure implemented
+
+The deferred API exposure above is now built, per the real consumer that
+appeared (the Roster Builder's player detail page, not the player browser
+originally guessed — see rationale below). `GET
+/seasons/{season}/players/{player_id}/projection` (`backend/api/app.py`):
+
+* **Lazy, not eager.** `AppState` gained a `projector_cache: dict[str,
+  RaptorTrendProjector]`, populated on first request to this route, not in
+  `lifespan()` — exactly the pattern this record anticipated, so startup
+  never depends on the gitignored artifact existing.
+* **Graceful, not a 500.** `ModelArtifactNotFoundError` (no artifact trained
+  in this environment) maps to **503**; `PlayerProjectionNotFoundError` (no
+  RAPTOR record for that player/season) maps to **404** — both already
+  `DomainError` subclasses, so they flow through the existing exception
+  handler with no new plumbing. The frontend (`PlayerDetailView.tsx`) shows
+  either as a quiet "not available" note, never an alarming error banner —
+  this is expected, common state (Render's production backend has no
+  trained artifact yet, see below), not a bug.
+* **First real consumer: the player detail page** (`/players/[playerId]`),
+  not the player browser this record originally guessed. The browser lists
+  hundreds of players at once; fetching a per-player model projection for
+  all of them would mean either a request storm or a new batch endpoint,
+  neither justified for a first slice. The player detail page already
+  fetches one player at a time, so this reuses that existing shape with a
+  second, independent, gracefully-degrading fetch — no batch endpoint, no
+  new per-request fan-out.
+* **Still standalone**, as designed: `PlayerProjectionResponse` is its own
+  schema, never merged into `ScenarioResponse`/`RosterBuilderResponse`'s
+  `contribution`/`model_version` fields. `contribution_epistemic_type` is
+  always `EpistemicType.MODEL_PREDICTION`.
+* **Still not wired for production.** This record's "a production deploy
+  would need the training script wired into the build step" question is
+  **still open** — Render's backend has no `ml/artifacts/` directory (it's
+  gitignored, nothing trains it there), so the live deployment will show
+  the 503 path until that's addressed. Not solved here; flagged, not
+  silently assumed away.
+* Backend: 220 tests (up from 216 after decision 0015's merge). Frontend:
+  227 tests (up from 218). Verified against a real running server with a
+  locally-trained artifact, not just the test suite's injected stubs
+  (`curl`: Stephen Curry's 2014-15 -> 2015-16 projection returned correctly
+  with full version metadata; an unknown player_id returned a clean 404).
+
 ## Re-evaluation Triggers
 
 * Real box-score data becomes available (BigDataBall permission granted, or
@@ -114,3 +157,9 @@ memorized from noise.
   a different provider" contract.
 * Backtest performance degrades materially on a newer RAPTOR snapshot (data
   version bump) — retrain and version a new model, never overwrite `v1`.
+* The live Render deployment needs this projection to actually work (not
+  just degrade gracefully to 503) — requires deciding how/when the artifact
+  gets trained in that environment (a build-step training run? a committed
+  artifact, breaking the "gitignored, never committed" convention? a
+  separate one-time admin action?) — a real product/ops decision, not
+  spec'd blind here.

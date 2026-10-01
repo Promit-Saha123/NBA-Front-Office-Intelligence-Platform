@@ -148,6 +148,26 @@ class TeamDetailResponse(BaseModel):
     total_roster_minutes: float
 
 
+class PlayerProjectionResponse(BaseModel):
+    """GET /seasons/{season}/players/{player_id}/projection (decision 0013).
+
+    A standalone next-season RAPTOR-trend forecast — never fed into
+    ContributionProvider or the scenario engine (decision 0013's
+    re-evaluation triggers: that would need its own decision record).
+    `contribution_epistemic_type` is always EpistemicType.MODEL_PREDICTION.
+    """
+
+    season: str
+    player_id: str
+    target_season: str
+    predicted_raptor_total: float
+    model_version: str
+    data_version: str
+    feature_schema_version: str
+    contribution_epistemic_type: EpistemicType
+    prediction_timestamp: str
+
+
 class RosterBuilderRequest(BaseModel):
     """POST /custom-rosters — a from-scratch 12-player roster (decision 0014).
 

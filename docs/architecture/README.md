@@ -109,6 +109,17 @@ Two more read-only routes support standalone player/team detail pages
   like a real team stat while silently misrepresenting one. No provider
   call is made for this route (no query parameter either) — it exposes only
   raw roster/identity data, same category as the original 3 lookup routes.
+* `GET /seasons/{season}/players/{player_id}/projection` (decision 0013's
+  "Update (2026-10-01)") — a standalone next-season RAPTOR-trend forecast
+  from the `ml/` package's `RaptorTrendProjector`, never mixed into
+  `ScenarioResponse`/`RosterBuilderResponse`. `AppState.projector_cache`
+  lazily constructs and memoizes the projector on first request, not at
+  startup, since the model artifact is gitignored and may not exist in
+  this environment; a missing artifact is `ModelArtifactNotFoundError` ->
+  **503** (not 500 — an expected, recoverable-without-a-code-change state,
+  not a bug), an unknown player/season is `PlayerProjectionNotFoundError`
+  -> 404. `contribution_epistemic_type` is always
+  `EpistemicType.MODEL_PREDICTION`.
 
 `POST /custom-rosters` ([decision 0014](../decisions/0014-roster-builder-scenario-contract.md))
 — a from-scratch 12-player roster, completely independent of the swap

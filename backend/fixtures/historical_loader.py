@@ -38,13 +38,14 @@ from backend.domain.models import (
     Team,
     TeamRoster,
     parse_season_label,
+    season_label_for_end_year,
 )
 
 # Every RS season with complete team/player rows in the pinned snapshot
 # (decision 0015) — verified directly against historical_RAPTOR_by_team.csv's
 # own season/season_type columns, not assumed from the source's stated range.
 SUPPORTED_SEASON_LABELS = frozenset(
-    {f"{end_year - 1}-{str(end_year)[-2:]}" for end_year in range(1977, 2023)}
+    {season_label_for_end_year(end_year) for end_year in range(1977, 2023)}
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
