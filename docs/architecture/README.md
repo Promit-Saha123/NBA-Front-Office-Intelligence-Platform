@@ -73,7 +73,7 @@ decision 0008's "UI-002 Implementation Notes"): `GET /seasons/{season}/teams`,
 for consistent 404/422 behavior through the same exception handler.
 
 Two more read-only routes support standalone player/team detail pages
-(step 8, CLAUDE.md's build order):
+(step 8 of the project's build order):
 
 * `GET /seasons/{season}/players/{player_id}?contribution_provider=...` —
   `contribution_provider` (`ContributionProviderChoice`) is a **required**

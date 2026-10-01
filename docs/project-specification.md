@@ -1,7 +1,7 @@
 # Project Specification
 
 Initial specification for the **NBA Front Office Intelligence Platform**, derived from
-[CLAUDE.md](../CLAUDE.md), [ml-specification.md](ml-specification.md),
+[ml-specification.md](ml-specification.md),
 [scenario-engine.md](scenario-engine.md), and [testing-strategy.md](testing-strategy.md).
 Unresolved decisions are listed at the end and are not presented as settled.
 
@@ -71,7 +71,7 @@ version, minutes method, and configuration, and every response exposes
 
 ## 3. MVP Scope
 
-The MVP is built as four vertical slices, following the build order in CLAUDE.md:
+The MVP is built as four vertical slices, following this project's build order:
 
 ### Slice 1 — Free historical foundation (decision 0007)
 
@@ -179,9 +179,12 @@ Toolchain (see [decisions/0002-environment-and-toolchain.md](decisions/0002-envi
 
 * **Python 3.12** managed with **uv**
 * **Node.js 22 LTS** with **pnpm**
-* **PostgreSQL 16** run locally via **Docker Compose**
 * **Ruff** (lint), **mypy** (type-check), **Pytest** (tests)
 * **Next.js with TypeScript** for the frontend
+
+No database is currently provisioned (decision 0002's 2026-10-01 update) —
+nothing in `backend/` reads from one yet; re-add Postgres with its own
+decision record once a real feature needs persistence.
 
 Deliberately not yet decided: the specific win-conversion method (see Unresolved
 Decisions). The historical box-score source for future PCE construction is a

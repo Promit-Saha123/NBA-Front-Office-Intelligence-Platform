@@ -142,7 +142,7 @@ pnpm dev
 * **CORS error in the browser console, request never reaches FastAPI:** `FRONTEND_ORIGINS` (backend) doesn't include the exact origin the frontend is actually running on (scheme + host + port must match exactly — `http://localhost:3000` and `http://127.0.0.1:3000` are different origins). Restart the backend after changing `.env` — origins are read once at process startup, not per-request.
 * **Frontend shows "This app isn't configured correctly":** `NEXT_PUBLIC_API_URL` isn't set. Next.js only reads `.env.local` at dev-server startup — restart `pnpm dev` after creating or editing it.
 * **"Could not reach the server" on every request:** the backend isn't running, or `NEXT_PUBLIC_API_URL` points at the wrong port. Confirm with the `curl` check above.
-* **`pnpm` not found:** see the `pnpm`-on-PATH note in `HANDOFF.md`'s gotchas — `corepack enable` may need `--install-directory` on some setups.
+* **`pnpm` not found:** run `corepack enable`; on some setups this needs an explicit `--install-directory` pointed at a directory already on `PATH`.
 * **`uv run` picks up the wrong Python environment:** if you see a `VIRTUAL_ENV=... does not match the project environment path` warning, it's informational — `uv` still uses `.venv` correctly. Pass `--active` to silence it if you have another environment activated.
 
 ### Test and quality-check commands
@@ -227,7 +227,6 @@ public URLs instead of localhost.
 
 ## Documentation
 
-* [CLAUDE.md](CLAUDE.md) — root operational rules and priorities
 * [docs/project-specification.md](docs/project-specification.md) — product scope,
   architecture, build order
 * [docs/data-source-evaluation.md](docs/data-source-evaluation.md) — data source

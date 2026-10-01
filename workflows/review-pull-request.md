@@ -13,7 +13,7 @@ standards before merge.
 ## Inputs
 
 * The pull request diff and description
-* [CLAUDE.md](../CLAUDE.md) rules and relevant docs under [docs/](../docs/)
+* Relevant docs under [docs/](../docs/)
 
 ## Steps
 
@@ -32,14 +32,16 @@ standards before merge.
 6. Check security: no secrets, parameterized database access, validated input, no
    stack traces exposed.
 7. Confirm documentation and decision records were updated where the change requires
-   it (see CLAUDE.md Decision Records triggers).
+   it (primary data source, canonical identifiers, model target, validation
+   strategy, feature schema, minutes/win-conversion methodology, database
+   technology, service boundaries, or major dependencies).
 8. For scenario-engine changes, additionally verify: minutes total exactly 240,
    model and data versions present, heuristic status visible, explanations match
    calculated factors.
 
 ## Validation Checks
 
-* Every item in the CLAUDE.md Definition of Done holds for this change.
+* Every item in this project's Definition of Done holds for this change.
 * Required CI gates pass; failures are explained and fixed, not bypassed.
 
 ## Expected Outputs
