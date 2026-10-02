@@ -84,6 +84,7 @@ vi.mock("@/lib/api/scenarios", async (importOriginal) => {
 
 import { ScenarioForm } from "./ScenarioForm";
 import { ScenarioApiError } from "@/lib/api/errors";
+import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { ScenarioResponse } from "@/lib/api/scenarios";
 
 const TEAMS = { season: "2014-15", teams: ["BOS", "GSW"] };
@@ -107,6 +108,10 @@ const SEASON_PLAYERS = {
     { player_id: "curryst01", name: "Stephen Curry" },
     { player_id: "acyqu01", name: "Quincy Acy" },
     { player_id: "bradlav01", name: "Avery Bradley" },
+    // Added for the Starting Lineup (5-player) results fixture below.
+    { player_id: "thompkl01", name: "Klay Thompson" },
+    { player_id: "greendr01", name: "Draymond Green" },
+    { player_id: "iguodan01", name: "Andre Iguodala" },
   ],
 };
 
@@ -176,7 +181,11 @@ afterEach(() => {
 describe("initial state from the URL", () => {
   it("normalizes an empty URL to the locked season via router.replace (an edit, not a submission)", async () => {
     render(<ScenarioForm />);
-    await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith("/?season=2014-15", { scroll: false }));
+    await waitFor(() =>
+      expect(routerMocks.replace).toHaveBeenCalledWith(`/?season=${DEFAULT_SEASON}`, {
+        scroll: false,
+      }),
+    );
     expect(routerMocks.push).not.toHaveBeenCalled();
   });
 
@@ -292,8 +301,36 @@ describe("selection-prevention rules", () => {
   });
 });
 
+describe("team/player media previews", () => {
+  it("renders no team logo or player headshot before anything is selected", async () => {
+    render(<ScenarioForm />);
+    await waitForTeamsLoaded();
+    expect(screen.queryByRole("img", { name: /logo$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /headshot$/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the selected team's logo once a team is chosen", async () => {
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await selectTeam(user, "GSW");
+    expect(screen.getByRole("img", { name: "Golden State Warriors logo" })).toBeInTheDocument();
+  });
+
+  it("shows each selected player's headshot, keyed to that specific player", async () => {
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    expect(screen.getByRole("img", { name: "Leandro Barbosa headshot" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Quincy Acy headshot" })).toBeInTheDocument();
+  });
+});
+
 describe("submission", () => {
   it("calls postScenario with the exact normalized request and pushes the submitted URL", async () => {
+    // Pinned explicitly: every fixture here (TEAMS, SEASON_PLAYERS, GSW_ROSTER)
+    // is season "2014-15" — this test exercises the submit flow, not
+    // DEFAULT_SEASON's mount-effect resolution (covered separately above).
+    setInitialUrl("season=2014-15");
     const user = userEvent.setup();
     render(<ScenarioForm />);
     await fillValidSelection(user);
@@ -530,14 +567,23 @@ describe("error display", () => {
 
 const RESULTS_RESPONSE: ScenarioResponse = {
   ...VALID_RESPONSE,
+  // Five players at real minutes (plus the outgoing player) so the
+  // Starting Lineup court's top-5-by-scenario-minutes selection has real
+  // data to rank, not just the 2-3 entries earlier UI-003 tests needed.
   baseline_rotation: [
-    { player_id: "curryst01", minutes: 200 },
+    { player_id: "curryst01", minutes: 60 },
+    { player_id: "thompkl01", minutes: 50 },
+    { player_id: "greendr01", minutes: 45 },
+    { player_id: "iguodan01", minutes: 45 },
     { player_id: "barbole01", minutes: 40 },
   ],
   // Mirrors backend/scenario/service.py: the outgoing player is carried into
   // scenario_rotation at 0 minutes, not omitted — never null in the real contract.
   scenario_rotation: [
-    { player_id: "curryst01", minutes: 200 },
+    { player_id: "curryst01", minutes: 60 },
+    { player_id: "thompkl01", minutes: 50 },
+    { player_id: "greendr01", minutes: 45 },
+    { player_id: "iguodan01", minutes: 45 },
     { player_id: "acyqu01", minutes: 40 },
     { player_id: "barbole01", minutes: 0 },
   ],
@@ -608,6 +654,53 @@ describe("results and disclosures (UI-003)", () => {
     expect(within(barbosaRow).getByText("Removed")).toBeInTheDocument();
     const acyRow = within(table).getByText("Quincy Acy").closest("tr")!;
     expect(within(acyRow).getByText("Added")).toBeInTheDocument();
+  });
+
+  it("shows the Starting Lineup court as the primary view, above the rotation table", async () => {
+    await submitAndGetResults();
+
+    // Top 5 by scenario minutes: Curry(60), Thompson(50), Green(45),
+    // Iguodala(45), Acy(40) — Barbosa (0, the outgoing player) is excluded.
+    // Names appear twice inside the court group (once as an SVG label, once
+    // in the accessible legend list) — scoped to the legend for one match.
+    const court = screen.getByRole("group", { name: /starting lineup/i });
+    const legend = within(court).getByRole("list");
+    expect(within(legend).getByText("Stephen Curry")).toBeInTheDocument();
+    expect(within(legend).getByText("Klay Thompson")).toBeInTheDocument();
+    expect(within(legend).getByText("Draymond Green")).toBeInTheDocument();
+    expect(within(legend).getByText("Andre Iguodala")).toBeInTheDocument();
+    expect(within(legend).getByText("Quincy Acy")).toBeInTheDocument();
+    expect(within(legend).queryByText("Leandro Barbosa")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Starting lineup shown below. Player placement on the court is for visualization only and does not represent verified on-court positions.",
+      ),
+    ).toBeInTheDocument();
+
+    // "Starting Lineup" (the court's section) must precede the rotation
+    // table in document order — it's meant to read as the primary view.
+    const heading = screen.getByRole("heading", { name: /starting lineup/i });
+    const table = screen.getAllByRole("table")[0];
+    expect(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows the court's own empty state, not a broken diagram, when fewer than five scenario players have minutes", async () => {
+    scenarioMocks.postScenario.mockResolvedValue({
+      ...RESULTS_RESPONSE,
+      scenario_rotation: [
+        { player_id: "curryst01", minutes: 200 },
+        { player_id: "acyqu01", minutes: 40 },
+        { player_id: "barbole01", minutes: 0 },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ScenarioForm />);
+    await fillValidSelection(user);
+    await user.click(screen.getByRole("button", { name: /run scenario/i }));
+    await waitFor(() => expect(screen.getByText(/completed successfully/i)).toBeInTheDocument());
+
+    expect(screen.getByText(/starting lineup unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /starting lineup/i })).not.toBeInTheDocument();
   });
 
   it("shows the allocation repairs note when the response includes one", async () => {
@@ -792,7 +885,7 @@ describe("accessibility", () => {
     render(<ScenarioForm />);
     const season = screen.getByLabelText(/season/i);
     expect(season.tagName).toBe("SELECT");
-    expect(season).toHaveValue("2014-15");
+    expect(season).toHaveValue(DEFAULT_SEASON);
     expect(screen.getByRole("option", { name: "2014-15" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "2015-16" })).toBeInTheDocument();
   });

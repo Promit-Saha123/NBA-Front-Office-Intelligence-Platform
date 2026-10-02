@@ -1,0 +1,51 @@
+/* Shared sizing/shape for TeamLogo.tsx and PlayerHeadshot.tsx — both are
+   thin ImageWithFallback wrappers, so their visual footprint (a fixed-size,
+   clipped badge) is identical; only the fallback content and shape differ. */
+
+.badge {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Player headshots are circular; team logos keep the square badge shape
+   above (closer to how a team crest actually reads at small sizes). */
+.round {
+  border-radius: 50%;
+}
+
+.sm {
+  width: 2rem;
+  height: 2rem;
+}
+
+.md {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.fallbackContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.sm .fallbackContent {
+  font-size: 0.65rem;
+}

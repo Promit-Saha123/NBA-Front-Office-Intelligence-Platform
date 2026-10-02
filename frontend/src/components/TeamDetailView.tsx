@@ -4,13 +4,11 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTeamDetail } from "@/lib/use-player-team-detail";
 import { toTeamDetailViewModel } from "@/lib/detail-view-model";
-import { SUPPORTED_SEASONS, normalizeSeason } from "@/lib/url-state";
+import { DEFAULT_SEASON, normalizeSeason } from "@/lib/url-state";
 import { teamDisplayName } from "@/lib/nba-teams";
 import { DetailStatus } from "./DetailStatus";
 import { DetailDisclosuresPanel } from "./DetailDisclosuresPanel";
 import styles from "./ScenarioForm.module.css";
-
-const DEFAULT_SEASON = SUPPORTED_SEASONS[0];
 
 const STATUS_REGION_ID = "team-detail-status";
 
@@ -47,7 +45,7 @@ export function TeamDetailView() {
           Historical data only — {season} season
         </span>
         <h1 style={{ fontSize: "2rem", marginBottom: "var(--space-1)" }}>
-          {teamDisplayName(teamId)}
+          {teamDisplayName(teamId, season)}
         </h1>
       </header>
 

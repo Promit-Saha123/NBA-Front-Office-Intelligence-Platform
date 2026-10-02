@@ -6,6 +6,8 @@ import { postCustomRoster, type RosterBuilderRequest } from "@/lib/api/roster-bu
 import { ScenarioApiError, UNKNOWN_ERROR_CODE, messageForErrorCode } from "@/lib/api/errors";
 import {
   CONTRIBUTION_PROVIDER_CHOICES,
+  DEFAULT_SEASON,
+  seasonDecadeGroup,
   SUPPORTED_SEASONS,
   type ContributionProviderChoice,
   type SupportedSeason,
@@ -21,7 +23,6 @@ import { RosterBuilderResult } from "./RosterBuilderResult";
 import type { RosterBuilderSubmissionState } from "./roster-builder-submission-state";
 import styles from "./ScenarioForm.module.css";
 
-const DEFAULT_SEASON: SupportedSeason = SUPPORTED_SEASONS[0];
 const EMPTY_SLOTS: (string | null)[] = new Array(SLOT_LABELS.length).fill(null);
 const STATUS_REGION_ID = "roster-builder-status";
 
@@ -134,7 +135,11 @@ export function RosterBuilderView() {
           label="Season"
           value={season}
           onChange={handleSeasonChange}
-          options={SUPPORTED_SEASONS.map((label) => ({ value: label, label }))}
+          options={SUPPORTED_SEASONS.map((label) => ({
+            value: label,
+            label,
+            group: seasonDecadeGroup(label),
+          }))}
           disabled={loading}
           helpText="Historical seasons only — no current-season or live data."
           required

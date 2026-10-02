@@ -84,8 +84,10 @@ def test_expected_data_version_is_enforced(tmp_path: Path) -> None:
 
 
 def test_unsupported_season_fails_clearly() -> None:
+    # 2022-23 is real but deliberately outside SUPPORTED_SEASON_LABELS — the
+    # pinned snapshot's own RS data ends at 2021-22 (decision 0015).
     with pytest.raises(UnsupportedSeasonError):
-        load_historical_season("2016-17")
+        load_historical_season("2022-23")
 
 
 # --- Integration tests against the real pinned 2015-16 snapshot ---
@@ -125,6 +127,47 @@ def test_2015_16_offense_and_defense_values_loaded() -> None:
     assert season_data.contribution_values["curryst01"] == pytest.approx(12.487858, abs=1e-6)
     assert season_data.offense_values["curryst01"] == pytest.approx(10.379411, abs=1e-6)
     assert season_data.defense_values["curryst01"] == pytest.approx(2.108447, abs=1e-6)
+
+
+# --- Full historical range (decision 0015) ---
+
+
+def test_earliest_supported_season_loads_successfully() -> None:
+    # 1976-77 is the ABA-merger season — the earliest RS season with complete
+    # rows in the pinned snapshot, 22 teams (fewer than today's 30).
+    season_data = load_historical_season("1976-77")
+    assert season_data.season.label == "1976-77"
+    assert len(season_data.rosters) == 22
+    assert "NYN" in season_data.rosters  # New York Nets, one season before NJN
+
+
+def test_latest_supported_season_loads_successfully() -> None:
+    season_data = load_historical_season("2021-22")
+    assert season_data.season.label == "2021-22"
+    assert len(season_data.rosters) == 30
+
+
+def test_season_after_pinned_range_is_unsupported() -> None:
+    with pytest.raises(UnsupportedSeasonError):
+        load_historical_season("2022-23")
+
+
+def test_season_before_pinned_range_is_unsupported() -> None:
+    with pytest.raises(UnsupportedSeasonError):
+        load_historical_season("1975-76")
+
+
+def test_seattle_to_oklahoma_city_relocation_boundary() -> None:
+    # The SuperSonics played their final Seattle season in 2007-08, then
+    # relocated and became the Thunder starting 2008-09 — same franchise,
+    # different team_id, no crosswalk needed since RosterScenarioService is
+    # always scoped to one season's own rosters.
+    before = load_historical_season("2007-08")
+    after = load_historical_season("2008-09")
+    assert "SEA" in before.rosters
+    assert "OKC" not in before.rosters
+    assert "SEA" not in after.rosters
+    assert "OKC" in after.rosters
 
 
 def test_missing_source_file_fails_clearly(tmp_path: Path) -> None:

@@ -21,6 +21,8 @@ from backend.domain.errors import (
     TeamNotFoundError,
     UnsupportedSeasonError,
 )
+from ml.artifact import ModelArtifactNotFoundError
+from ml.inference import PlayerProjectionNotFoundError
 
 # Errors reachable through the scenario endpoint's normal request handling.
 # Anything not listed here (e.g. the fixture-loading errors, or the
@@ -38,6 +40,12 @@ DOMAIN_ERROR_STATUS: dict[type[DomainError], int] = {
     InvalidManualMinutesError: 422,
     InvalidCustomRosterError: 422,
     InvalidRosterError: 500,
+    # The projection model's gitignored artifact may simply not exist in this
+    # environment yet (decision 0013: "would need a lazy-load-with-graceful-
+    # 503 pattern") — a client-correctable 404 would wrongly imply the
+    # player/season itself is the problem.
+    ModelArtifactNotFoundError: 503,
+    PlayerProjectionNotFoundError: 404,
 }
 
 DEFAULT_DOMAIN_ERROR_STATUS = 500

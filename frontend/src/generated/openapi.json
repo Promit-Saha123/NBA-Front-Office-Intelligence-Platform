@@ -156,6 +156,59 @@
         "title": "PlayerDetailResponse",
         "type": "object"
       },
+      "PlayerProjectionResponse": {
+        "description": "GET /seasons/{season}/players/{player_id}/projection (decision 0013).\n\nA standalone next-season RAPTOR-trend forecast \u2014 never fed into\nContributionProvider or the scenario engine (decision 0013's\nre-evaluation triggers: that would need its own decision record).\n`contribution_epistemic_type` is always EpistemicType.MODEL_PREDICTION.",
+        "properties": {
+          "contribution_epistemic_type": {
+            "$ref": "#/components/schemas/EpistemicType"
+          },
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "feature_schema_version": {
+            "title": "Feature Schema Version",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "player_id": {
+            "title": "Player Id",
+            "type": "string"
+          },
+          "predicted_raptor_total": {
+            "title": "Predicted Raptor Total",
+            "type": "number"
+          },
+          "prediction_timestamp": {
+            "title": "Prediction Timestamp",
+            "type": "string"
+          },
+          "season": {
+            "title": "Season",
+            "type": "string"
+          },
+          "target_season": {
+            "title": "Target Season",
+            "type": "string"
+          }
+        },
+        "required": [
+          "season",
+          "player_id",
+          "target_season",
+          "predicted_raptor_total",
+          "model_version",
+          "data_version",
+          "feature_schema_version",
+          "contribution_epistemic_type",
+          "prediction_timestamp"
+        ],
+        "title": "PlayerProjectionResponse",
+        "type": "object"
+      },
       "PlayerSummaryResponse": {
         "properties": {
           "name": {
@@ -978,6 +1031,55 @@
           }
         },
         "summary": "Get Player"
+      }
+    },
+    "/seasons/{season}/players/{player_id}/projection": {
+      "get": {
+        "description": "Decision 0013's RAPTOR-trend model, exposed here as a standalone\nnext-season forecast \u2014 never mixed into ScenarioResponse/\nRosterBuilderResponse's contribution/model_version fields, which stay\nreserved for a model feeding the scenario engine itself (none exists in\nthis MVP). Raises ModelArtifactNotFoundError (-> 503) if no model has\nbeen trained in this environment, or PlayerProjectionNotFoundError\n(-> 404) if this player has no RAPTOR record for this season.",
+        "operationId": "get_player_projection_seasons__season__players__player_id__projection_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "season",
+            "required": true,
+            "schema": {
+              "title": "Season",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "title": "Player Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerProjectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Player Projection"
       }
     },
     "/seasons/{season}/teams": {

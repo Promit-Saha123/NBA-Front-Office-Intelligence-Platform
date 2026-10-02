@@ -33,6 +33,7 @@ from backend.api.schemas import (
     ErrorResponse,
     ExplanationFactorResponse,
     PlayerDetailResponse,
+    PlayerProjectionResponse,
     PlayerSummaryResponse,
     RosterBuilderRequest,
     RosterBuilderResponse,
@@ -52,8 +53,11 @@ from backend.domain.errors import DomainError, UnsupportedSeasonError
 from backend.domain.models import (
     CustomRosterRequest,
     CustomRosterResult,
+    EpistemicType,
     RosterScenarioRequest,
     RosterScenarioResult,
+    parse_season_label,
+    season_label_for_end_year,
 )
 from backend.fixtures.historical_loader import (
     SUPPORTED_SEASON_LABELS,
@@ -64,6 +68,7 @@ from backend.providers.base import ContributionProvider
 from backend.providers.raptor_benchmark import HistoricalRaptorBenchmarkProvider
 from backend.providers.synthetic import SyntheticContributionProvider
 from backend.scenario.service import RosterScenarioService
+from ml.inference import RaptorTrendProjector
 
 # The browser calls this API directly — no Next.js proxy route (decision 0008,
 # clarification 6: a proxy solves no CORS/auth/deployment problem this free,
@@ -83,6 +88,25 @@ class AppState:
     services: dict[str, RosterScenarioService]
     providers: dict[str, dict[ContributionProviderChoice, ContributionProvider]]
     season_data: dict[str, HistoricalSeasonData]
+    # Lazily populated on first request, not at startup (decision 0013: the
+    # model artifact is gitignored, so an eager load would crash app boot in
+    # any environment without a locally-trained model — CI, a fresh clone,
+    # Render). Keyed by _PROJECTOR_CACHE_KEY; a dict (not a bare field) so it
+    # stays mutable despite AppState itself being frozen.
+    projector_cache: dict[str, RaptorTrendProjector]
+
+
+_PROJECTOR_CACHE_KEY = "active"
+
+
+def _get_projector(state: AppState) -> RaptorTrendProjector:
+    if _PROJECTOR_CACHE_KEY not in state.projector_cache:
+        # Raises ModelArtifactNotFoundError (-> 503, backend/api/errors.py) if
+        # no artifact has been trained in this environment — never cached as
+        # a failure, so a later request after the artifact appears succeeds
+        # without a restart.
+        state.projector_cache[_PROJECTOR_CACHE_KEY] = RaptorTrendProjector()
+    return state.projector_cache[_PROJECTOR_CACHE_KEY]
 
 
 def _season_state(state: AppState, season: str) -> HistoricalSeasonData:
@@ -110,7 +134,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             ),
             ContributionProviderChoice.SYNTHETIC: SyntheticContributionProvider(),
         }
-    app.state.nba = AppState(services=services, providers=providers, season_data=season_data)
+    app.state.nba = AppState(
+        services=services, providers=providers, season_data=season_data, projector_cache={}
+    )
     yield
 
 
@@ -220,6 +246,39 @@ def get_player(
         offensive_impact=profile.offensive_impact,
         defensive_impact=profile.defensive_impact,
         attribution=[provider.get_attribution()],
+    )
+
+
+@app.get(
+    "/seasons/{season}/players/{player_id}/projection",
+    response_model=PlayerProjectionResponse,
+)
+def get_player_projection(
+    season: str, player_id: str, request: Request
+) -> PlayerProjectionResponse:
+    """Decision 0013's RAPTOR-trend model, exposed here as a standalone
+    next-season forecast — never mixed into ScenarioResponse/
+    RosterBuilderResponse's contribution/model_version fields, which stay
+    reserved for a model feeding the scenario engine itself (none exists in
+    this MVP). Raises ModelArtifactNotFoundError (-> 503) if no model has
+    been trained in this environment, or PlayerProjectionNotFoundError
+    (-> 404) if this player has no RAPTOR record for this season.
+    """
+    state: AppState = request.app.state.nba
+    _season_state(state, season)  # validates the season label; result unused here
+    projector = _get_projector(state)
+    feature_season = parse_season_label(season).end_year
+    projection = projector.project(player_id, feature_season)
+    return PlayerProjectionResponse(
+        season=season,
+        player_id=projection.player_id,
+        target_season=season_label_for_end_year(projection.target_season),
+        predicted_raptor_total=projection.predicted_raptor_total,
+        model_version=projection.model_version,
+        data_version=projection.data_version,
+        feature_schema_version=projection.feature_schema_version,
+        contribution_epistemic_type=EpistemicType.MODEL_PREDICTION,
+        prediction_timestamp=projection.prediction_timestamp,
     )
 
 

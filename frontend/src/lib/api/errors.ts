@@ -49,6 +49,8 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   INVALID_ROTATION: "This roster change can't produce a valid 240-minute rotation.",
   INVALID_MANUAL_MINUTES: "Those minutes aren't valid — check the total and each player's value.",
   INVALID_CUSTOM_ROSTER: "A custom roster needs exactly 12 different players.",
+  MODEL_ARTIFACT_NOT_FOUND: "Next-season projection isn't available in this environment yet.",
+  PLAYER_PROJECTION_NOT_FOUND: "No next-season projection is available for this player.",
   [FASTAPI_VALIDATION_ERROR_CODE]: "Check your selections and try again.",
   [NETWORK_ERROR_CODE]: "Could not reach the server. Check your connection and try again.",
   [INVALID_RESPONSE_SHAPE_CODE]: "The server returned an unexpected response.",

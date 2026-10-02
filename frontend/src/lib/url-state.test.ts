@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   applySelectionUpdate,
+  DEFAULT_SEASON,
   EMPTY_SCENARIO_SELECTION,
   isCompleteSelection,
   makePrefixedParamKeys,
   parseScenarioSelection,
   PARAM_KEYS,
+  seasonDecadeGroup,
   serializeScenarioSelection,
+  SUPPORTED_SEASONS,
   type ScenarioSelectionState,
 } from "./url-state";
 
@@ -30,7 +33,7 @@ describe("parseScenarioSelection", () => {
   });
 
   it("drops an unsupported season instead of passing it through", () => {
-    const params = new URLSearchParams({ season: "1999-00" });
+    const params = new URLSearchParams({ season: "2022-23" });
     expect(parseScenarioSelection(params).season).toBeNull();
   });
 
@@ -174,5 +177,26 @@ describe("makePrefixedParamKeys (comparison view, decision 0012)", () => {
 
     expect(parseScenarioSelection(combined, keysA)).toEqual(FULL_SELECTION);
     expect(parseScenarioSelection(combined, keysB)).toEqual(otherSelection);
+  });
+});
+
+describe("SUPPORTED_SEASONS / DEFAULT_SEASON (decision 0015)", () => {
+  it("spans every RS season the pinned snapshot covers, oldest first", () => {
+    expect(SUPPORTED_SEASONS.length).toBe(46);
+    expect(SUPPORTED_SEASONS[0]).toBe("1976-77");
+    expect(SUPPORTED_SEASONS[SUPPORTED_SEASONS.length - 1]).toBe("2021-22");
+  });
+
+  it("defaults to the most recent season, not array position 0", () => {
+    expect(DEFAULT_SEASON).toBe("2021-22");
+  });
+});
+
+describe("seasonDecadeGroup", () => {
+  it("buckets a season into its decade", () => {
+    expect(seasonDecadeGroup("1976-77")).toBe("1970s");
+    expect(seasonDecadeGroup("1999-00")).toBe("1990s");
+    expect(seasonDecadeGroup("2000-01")).toBe("2000s");
+    expect(seasonDecadeGroup("2021-22")).toBe("2020s");
   });
 });

@@ -27,14 +27,13 @@ features.
 3. Set up PostgreSQL for local development and a migration tool.
 4. Configure linting, type checking, and test runners for both frontend and backend.
 5. Create `.env` handling from `.env.example`; never commit real values.
-6. Populate the **Commands** section of [CLAUDE.md](../CLAUDE.md) with the actual
-   working commands, verified by running each one.
+6. Document the actual working commands for this repo, verified by running each one.
 7. Add a minimal CI pipeline running lint, type check, and tests.
 
 ## Validation Checks
 
 * Frontend and backend start locally without errors.
-* Every command listed in CLAUDE.md runs successfully as written.
+* Every documented command runs successfully as written.
 * Lint, type check, and (empty) test suites pass.
 * No secrets are committed; `.env` is ignored by git.
 
@@ -42,7 +41,7 @@ features.
 
 * Runnable frontend and backend skeletons
 * Working local database and migration setup
-* Populated CLAUDE.md Commands section
+* Documented working commands
 * CI configuration
 
 ## Stopping Conditions

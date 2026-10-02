@@ -22,6 +22,20 @@
   gap: 0.35rem;
 }
 
+/* Wraps a ScenarioField together with its selected team/player media
+   preview (TeamLogo/PlayerHeadshot) — the media is absent until a value is
+   selected, so this stays a plain single-column stack until then. */
+.fieldWithMedia {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.fieldWithMedia > .field {
+  flex: 1;
+  min-width: 0;
+}
+
 .label {
   font-weight: 600;
   font-size: 0.9rem;

@@ -14,8 +14,45 @@
  * comparison view (decision 0012) via `makePrefixedParamKeys`.
  */
 
-export const SUPPORTED_SEASONS = ["2014-15", "2015-16"] as const;
+// Every RS season with complete team/player rows in the pinned RAPTOR
+// snapshot (decision 0015) — must match backend.fixtures.historical_loader
+// .SUPPORTED_SEASON_LABELS exactly (mirrored by hand since this project has
+// no shared-codegen step for plain constants, only for the OpenAPI schema).
+export const SUPPORTED_SEASONS = [
+  "1976-77", "1977-78", "1978-79", "1979-80", "1980-81", "1981-82",
+  "1982-83", "1983-84", "1984-85", "1985-86", "1986-87", "1987-88",
+  "1988-89", "1989-90", "1990-91", "1991-92", "1992-93", "1993-94",
+  "1994-95", "1995-96", "1996-97", "1997-98", "1998-99", "1999-00",
+  "2000-01", "2001-02", "2002-03", "2003-04", "2004-05", "2005-06",
+  "2006-07", "2007-08", "2008-09", "2009-10", "2010-11", "2011-12",
+  "2012-13", "2013-14", "2014-15", "2015-16", "2016-17", "2017-18",
+  "2018-19", "2019-20", "2020-21", "2021-22",
+] as const; // fmt: skip
 export type SupportedSeason = (typeof SUPPORTED_SEASONS)[number];
+
+/**
+ * The season every page defaults to before a user (or the URL) picks one.
+ * The *most recent* supported season, not array position 0 — with
+ * SUPPORTED_SEASONS now spanning 1976-77 through 2021-22 (decision 0015),
+ * defaulting to the oldest season would be a poor first impression for a
+ * default landing experience. Centralized here (previously redeclared as
+ * `SUPPORTED_SEASONS[0]` independently in four components) since it's now a
+ * real product choice, not an incidental array-position pick.
+ */
+export const DEFAULT_SEASON: SupportedSeason = SUPPORTED_SEASONS[SUPPORTED_SEASONS.length - 1];
+
+/**
+ * Buckets a season into its decade (e.g. "1999-00" -> "1990s") for grouping
+ * a 46-entry season `<select>` into native `<optgroup>`s (decision 0015) —
+ * the same chunking approach ScenarioField already uses for the ~570-player
+ * "Player to add" list, not a new UI pattern. Pure/framework-agnostic like
+ * the rest of this module; callers attach it as `group` on their own
+ * `{value, label, group}` select-option objects.
+ */
+export function seasonDecadeGroup(season: SupportedSeason): string {
+  const startYear = Number(season.slice(0, 4));
+  return `${Math.floor(startYear / 10) * 10}s`;
+}
 
 export const CONTRIBUTION_PROVIDER_CHOICES = ["historical_benchmark", "synthetic"] as const;
 export type ContributionProviderChoice = (typeof CONTRIBUTION_PROVIDER_CHOICES)[number];

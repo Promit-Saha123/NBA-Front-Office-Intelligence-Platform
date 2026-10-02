@@ -7,7 +7,12 @@ import userEvent from "@testing-library/user-event";
 // Next.js App Router test utility exists) — extended with a static
 // useParams() since these pages read the route param that way.
 const routerMocks = vi.hoisted(() => {
-  let search = "";
+  // Every test's fixture data (CURRY, below) is season "2014-15" — the URL
+  // starts pinned to that explicitly so assertions don't depend on
+  // DEFAULT_SEASON's value (which is the *most recent* supported season,
+  // not a fixed one — see url-state.ts). The one test that actually
+  // exercises the default-season fallback overrides this itself.
+  let search = "season=2014-15";
   const listeners = new Set<() => void>();
   return {
     getSearch: () => search,
@@ -21,8 +26,8 @@ const routerMocks = vi.hoisted(() => {
     },
     replace: vi.fn(),
     reset: () => {
-      search = "";
-      window.history.replaceState(null, "", "/players/curryst01");
+      search = "season=2014-15";
+      window.history.replaceState(null, "", "/players/curryst01?season=2014-15");
       routerMocks.replace.mockClear();
     },
   };
@@ -45,9 +50,26 @@ vi.mock("next/navigation", () => ({
 const detailMocks = vi.hoisted(() => ({ getPlayerDetail: vi.fn() }));
 vi.mock("@/lib/api/detail", () => detailMocks);
 
+const projectionMocks = vi.hoisted(() => ({ getPlayerProjection: vi.fn() }));
+vi.mock("@/lib/api/projection", () => projectionMocks);
+
 import { PlayerDetailView } from "./PlayerDetailView";
 import { ScenarioApiError, messageForErrorCode } from "@/lib/api/errors";
+import { DEFAULT_SEASON } from "@/lib/url-state";
 import type { PlayerDetailResponse } from "@/lib/api/detail";
+import type { PlayerProjectionResponse } from "@/lib/api/projection";
+
+const CURRY_PROJECTION: PlayerProjectionResponse = {
+  season: "2014-15",
+  player_id: "curryst01",
+  target_season: "2015-16",
+  predicted_raptor_total: 5.123,
+  model_version: "raptor-trend-xgb-v1",
+  data_version: "fivethirtyeight-nba-raptor-2022-11-29",
+  feature_schema_version: "raptor-trend-features-v1",
+  contribution_epistemic_type: "model_prediction",
+  prediction_timestamp: "2026-10-01T00:00:00+00:00",
+};
 
 const CURRY: PlayerDetailResponse = {
   player_id: "curryst01",
@@ -69,6 +91,11 @@ const CURRY: PlayerDetailResponse = {
 beforeEach(() => {
   routerMocks.reset();
   detailMocks.getPlayerDetail.mockReset();
+  projectionMocks.getPlayerProjection.mockReset();
+  // Default every test to the success path unless it overrides this itself —
+  // most of these tests aren't about the projection section, so this keeps
+  // them from each needing their own unrelated mock setup.
+  projectionMocks.getPlayerProjection.mockResolvedValue(CURRY_PROJECTION);
 });
 
 afterEach(() => {
@@ -95,6 +122,33 @@ describe("PlayerDetailView", () => {
 
     const teamLink = screen.getByRole("link", { name: "GSW" });
     expect(teamLink).toHaveAttribute("href", "/teams/GSW?season=2014-15");
+  });
+
+  it("renders the next-season projection on success, clearly labeled as an experimental model", async () => {
+    detailMocks.getPlayerDetail.mockResolvedValue(CURRY);
+    render(<PlayerDetailView />);
+
+    expect(await screen.findByRole("heading", { name: "Next-season projection" })).toBeInTheDocument();
+    expect(screen.getByText("2015-16")).toBeInTheDocument();
+    expect(screen.getByText("5.12")).toBeInTheDocument();
+    expect(screen.getByText("raptor-trend-xgb-v1")).toBeInTheDocument();
+    expect(screen.getByText(/not the project's approved future PCE metric/i)).toBeInTheDocument();
+  });
+
+  it("shows a quiet unavailable note, not an error banner, when no model is trained in this environment", async () => {
+    detailMocks.getPlayerDetail.mockResolvedValue(CURRY);
+    projectionMocks.getPlayerProjection.mockRejectedValue(
+      new ScenarioApiError({
+        status: 503,
+        code: "MODEL_ARTIFACT_NOT_FOUND",
+        message: messageForErrorCode("MODEL_ARTIFACT_NOT_FOUND"),
+      }),
+    );
+    render(<PlayerDetailView />);
+
+    await screen.findByRole("heading", { name: "Next-season projection" });
+    expect(screen.getByText(/next-season projection isn't available in this environment/i)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("renders every team stint as a separate link for a mid-season-traded player", async () => {
@@ -167,14 +221,16 @@ describe("PlayerDetailView", () => {
   });
 
   it("falls back to the default season when ?season= is absent or unsupported", async () => {
-    detailMocks.getPlayerDetail.mockResolvedValue(CURRY);
-    window.history.replaceState(null, "", "/players/curryst01?season=1999-00"); // not in SUPPORTED_SEASONS
-    routerMocks.setSearch("season=1999-00");
+    detailMocks.getPlayerDetail.mockResolvedValue({ ...CURRY, season: DEFAULT_SEASON });
+    // 2022-23 is real but outside SUPPORTED_SEASON_LABELS (the pinned
+    // snapshot's RS data ends at 2021-22 — decision 0015).
+    window.history.replaceState(null, "", "/players/curryst01?season=2022-23");
+    routerMocks.setSearch("season=2022-23");
     render(<PlayerDetailView />);
 
     await screen.findByRole("heading", { level: 1, name: "Stephen Curry" });
     expect(detailMocks.getPlayerDetail).toHaveBeenCalledWith(
-      "2014-15",
+      DEFAULT_SEASON,
       "curryst01",
       "historical_benchmark",
       expect.anything(),

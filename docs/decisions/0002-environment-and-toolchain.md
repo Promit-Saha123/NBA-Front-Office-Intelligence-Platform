@@ -66,3 +66,15 @@ Postgres versions) were not re-litigated. No repository configuration conflicted
 * Python 3.12 or Node 22 approaching end of support
 * A dependency requiring a newer runtime
 * pnpm or uv becoming unmaintained or incompatible with required tooling
+
+## Update (2026-10-01): Docker Compose / PostgreSQL dropped as unused
+
+`docker-compose.yml` and the `DATABASE_URL`/`POSTGRES_*` variables in
+`.env.example` have been removed. Nothing in `backend/` has ever read from a
+database — confirmed by grepping the codebase for `DATABASE_URL`/
+`psycopg`/`sqlalchemy`/`POSTGRES` before removal (no matches). This was
+provisioned ahead of need per the original decision above; the "ahead of
+need" assumption never materialized into an actual feature. Re-add Postgres
+(via Docker Compose or otherwise) with its own decision record once a real
+feature needs persistence — don't resurrect the old compose file from git
+history by assumption, since the pinned image tag will be stale by then.
